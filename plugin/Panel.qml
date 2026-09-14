@@ -33,8 +33,8 @@ Panel {
   readonly property real latencyMs: reachable && data.latency_ms !== null && data.latency_ms !== undefined ? Number(data.latency_ms) : -1
   readonly property real dropPct: reachable && data.drop !== null && data.drop !== undefined ? Number(data.drop) * 100 : -1
 
-  // Symbol in der Bar (Nerd Font, nf-md, Raumstation U+F1383, von David gewählt); der Tooltip trägt die Zahlen.
-  readonly property string glyph: "\uDB84\uDF83"
+  // Symbol in der Bar (Nerd Font, nf-md, Satellitenschüssel U+EF60 (fa-satellite_dish), im Test); der Tooltip trägt die Zahlen.
+  readonly property string glyph: "\uEF60"
   readonly property string tooltip: {
     if (!reachable) return "Starlink: Schüssel nicht erreichbar"
     if (down) return "Starlink: " + reason(state)
