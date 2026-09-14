@@ -62,7 +62,7 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: panelLoader.item ? panelLoader.item.glyph : "\uDB82\uDD46"
+    text: panelLoader.item ? panelLoader.item.glyph : "\uDB84\uDD19"
     active: panelLoader.item ? panelLoader.item.down : false
     tooltipText: panelLoader.item ? panelLoader.item.tooltip : "Starlink"
 
