@@ -33,14 +33,14 @@ Panel {
   readonly property real latencyMs: reachable && data.latency_ms !== null && data.latency_ms !== undefined ? Number(data.latency_ms) : -1
   readonly property real dropPct: reachable && data.drop !== null && data.drop !== undefined ? Number(data.drop) * 100 : -1
 
-  // Text im Bar-Widget: Verzögerung, oder der Grund, wenn die Verbindung weg ist.
-  readonly property string barLabel: {
-    if (!reachable) return "SL –"
-    if (down) return "SL " + shortReason(state)
-    if (latencyMs >= 0) return "SL " + Math.round(latencyMs) + " ms"
-    return "SL"
+  // Symbol in der Bar (Nerd Font, nf-md, Satellitenschüssel U+F0B46); der Tooltip trägt die Zahlen.
+  readonly property string glyph: "\uDB82\uDD46"
+  readonly property string tooltip: {
+    if (!reachable) return "Starlink: Schüssel nicht erreichbar"
+    if (down) return "Starlink: " + reason(state)
+    if (latencyMs >= 0) return "Starlink " + Math.round(latencyMs) + " ms"
+    return "Starlink verbunden"
   }
-  readonly property string tooltip: reachable ? (connected ? "Starlink verbunden" : "Starlink: " + reason(state)) : "Starlink: Schüssel nicht erreichbar"
 
   // Die Schüssel nennt den Grund als Code. Hier die Übersetzung in Worte.
   function reason(code) {
@@ -215,9 +215,10 @@ Panel {
           }
         }
 
-        // Kennzahlen
-        Row {
+        // Kennzahlen; Flow bricht um, wenn die Zeile zu lang wird
+        Flow {
           visible: root.reachable
+          width: parent.width
           spacing: Style.space(18)
           leftPadding: Style.space(18)
           Text {

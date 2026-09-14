@@ -58,13 +58,13 @@ BarWidget {
     }
   }
 
-  WidgetButton {
+  BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: panelLoader.item ? panelLoader.item.barLabel : "SL"
+    text: panelLoader.item ? panelLoader.item.glyph : "\uDB82\uDD46"
     active: panelLoader.item ? panelLoader.item.down : false
-    tooltipText: panelLoader.item ? panelLoader.item.tooltip : ""
+    tooltipText: panelLoader.item ? panelLoader.item.tooltip : "Starlink"
 
     onPressed: function(b) {
       if (b === Qt.MiddleButton) root.refresh()
