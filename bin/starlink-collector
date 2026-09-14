@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# Sammler: fragt die Starlink-Schüssel laufend ab, erkennt Unterbrüche und
+# schreibt den Stand nach ~/.local/state/starlink/status.json.
+# Läuft als Benutzerdienst (systemd --user), solange der Rechner läuft.
+# Ist keine Schüssel erreichbar (nicht über Starlink online), wartet er.
+set -euo pipefail
+
+TOOLS="${STARLINK_TOOLS:-$HOME/Work/starlink-grpc-tools}"
+PY="$TOOLS/.venv/bin/python"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/starlink"
+mkdir -p "$STATE_DIR"
+
+exec "$PY" -u - "$TOOLS" "$STATE_DIR" <<'PYEOF'
+import json
+import os
+import sys
+import time
+
+sys.path.insert(0, sys.argv[1])
+state_dir = sys.argv[2]
+status_path = os.path.join(state_dir, "status.json")
+outages_path = os.path.join(state_dir, "outages.jsonl")
+
+INTERVAL = 2            # Sekunden zwischen zwei Abfragen
+HISTORY_S = 15 * 60     # Verlauf, den status.json trägt
+MAX_OUTAGES = 200       # Unterbrüche, die status.json trägt
+
+import starlink_grpc
+
+
+def boot_time():
+    with open("/proc/uptime") as f:
+        up = float(f.read().split()[0])
+    return int(time.time() - up)
+
+
+def write_atomic(path, obj):
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(obj, f)
+    os.replace(tmp, path)
+
+
+def load_outages(since):
+    out = []
+    try:
+        with open(outages_path) as f:
+            for line in f:
+                try:
+                    o = json.loads(line)
+                except ValueError:
+                    continue
+                if o.get("start", 0) >= since:
+                    out.append(o)
+    except FileNotFoundError:
+        pass
+    return out[-MAX_OUTAGES:]
+
+
+boot = boot_time()
+outages = load_outages(boot)
+history = []            # [ts, latenz_ms, verlust_anteil]
+current = None          # laufender Unterbruch {start, cause}
+ctx = None
+
+while True:
+    ts = int(time.time())
+    status = None
+    error = ""
+    try:
+        if ctx is None:
+            ctx = starlink_grpc.ChannelContext()
+        status, obstruction, alerts = starlink_grpc.status_data(ctx)
+    except Exception as e:
+        error = str(e).splitlines()[0] if str(e) else e.__class__.__name__
+        try:
+            if ctx is not None:
+                ctx.close()
+        except Exception:
+            pass
+        ctx = None
+
+    if status is not None:
+        state = str(status.get("state", ""))
+        connected = state == "CONNECTED"
+        latency = status.get("pop_ping_latency_ms")
+        drop = status.get("pop_ping_drop_rate")
+        history.append([ts, latency, drop])
+        # Unterbruch beginnt oder endet
+        if not connected and current is None:
+            current = {"start": ts, "cause": state}
+        elif not connected and current is not None and current["cause"] != state:
+            current["cause"] = state
+        elif connected and current is not None:
+            done = {"start": current["start"], "end": ts,
+                    "duration_s": ts - current["start"], "cause": current["cause"]}
+            outages.append(done)
+            outages = outages[-MAX_OUTAGES:]
+            with open(outages_path, "a") as f:
+                f.write(json.dumps(done) + "\n")
+            current = None
+    else:
+        # Schüssel weg: laufenden Unterbruch offen lassen, Verlauf nicht füllen
+        pass
+
+    cutoff = ts - HISTORY_S
+    history = [h for h in history if h[0] >= cutoff]
+
+    doc = {
+        "ts": ts,
+        "boot": boot,
+        "ok": status is not None,
+        "error": error,
+        "interval_s": INTERVAL,
+        "current_outage": current,
+        "outages": outages,
+        "history": history,
+    }
+    if status is not None:
+        active_alerts = [name for name, on in alerts.items() if on]
+        doc.update({
+            "state": status.get("state", ""),
+            "latency_ms": status.get("pop_ping_latency_ms"),
+            "drop": status.get("pop_ping_drop_rate"),
+            "down_bps": status.get("downlink_throughput_bps"),
+            "up_bps": status.get("uplink_throughput_bps"),
+            "uptime_s": status.get("uptime"),
+            "obstructed": status.get("currently_obstructed"),
+            "fraction_obstructed": status.get("fraction_obstructed"),
+            "alerts": active_alerts,
+        })
+    write_atomic(status_path, doc)
+    time.sleep(INTERVAL if status is not None else 10)
+PYEOF

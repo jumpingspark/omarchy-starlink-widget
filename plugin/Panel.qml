@@ -4,9 +4,9 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// Das Klick-Panel: Zustand, Verzögerung, Verlust, Durchsatz und der Grund,
-// falls die Verbindung gerade unterbrochen ist. Daten kommen vom Skript
-// bin/starlink-status (eine JSON-Zeile je Abfrage).
+// Das Klick-Panel: Zustand, Kennzahlen und die Unterbrüche seit Rechnerstart.
+// Die Daten schreibt der Sammler (bin/starlink-collector, Benutzerdienst)
+// nach ~/.local/state/starlink/status.json; das Panel liest nur.
 Panel {
   id: root
   moduleName: "dd.starlink"
@@ -19,23 +19,34 @@ Panel {
   property bool openedFromHotkey: false
 
   // ---- Daten
-  property var data: null            // letzte JSON-Antwort
+  property var data: null            // Inhalt von status.json
   property string lastError: ""
-  property double lastUpdateMs: 0
+  property double nowMs: Date.now()
 
-  readonly property string scriptPath: Quickshell.env("HOME") + "/Work/starlink-widget/bin/starlink-status"
-  readonly property int refreshSec: Math.max(2, parseInt(setting("refreshIntervalSec", 5), 10) || 5)
+  readonly property string statePath: Quickshell.env("HOME") + "/.local/state/starlink/status.json"
+  readonly property int staleAfterS: 30
 
-  readonly property bool reachable: data !== null && data.ok === true
+  readonly property bool haveFile: data !== null
+  readonly property bool stale: haveFile && (nowMs / 1000 - Number(data.ts || 0)) > staleAfterS
+  readonly property bool reachable: haveFile && !stale && data.ok === true
   readonly property string state: reachable ? String(data.state || "") : ""
   readonly property bool connected: reachable && state === "CONNECTED"
   readonly property bool down: reachable && !connected
   readonly property real latencyMs: reachable && data.latency_ms !== null && data.latency_ms !== undefined ? Number(data.latency_ms) : -1
   readonly property real dropPct: reachable && data.drop !== null && data.drop !== undefined ? Number(data.drop) * 100 : -1
+  readonly property var outages: haveFile && data.outages ? data.outages : []
+  readonly property var currentOutage: haveFile && data.current_outage ? data.current_outage : null
+  readonly property var recentOutages: {
+    var list = outages.slice()
+    list.reverse()
+    return list.slice(0, 8)
+  }
 
-  // Symbol in der Bar (Nerd Font, nf-md, Satellitenschüssel U+EF60 (fa-satellite_dish), im Test); der Tooltip trägt die Zahlen.
+  // Symbol in der Bar (Nerd Font, Satellitenschüssel U+EF60, fa-satellite_dish, von David gewählt);
+  // der Tooltip trägt die Zahlen.
   readonly property string glyph: "\uEF60"
   readonly property string tooltip: {
+    if (!haveFile || stale) return "Starlink: Sammler meldet sich nicht"
     if (!reachable) return "Starlink: Schüssel nicht erreichbar"
     if (down) return "Starlink: " + reason(state)
     if (latencyMs >= 0) return "Starlink " + Math.round(latencyMs) + " ms"
@@ -62,20 +73,6 @@ Panel {
     }
   }
 
-  function shortReason(code) {
-    switch (String(code)) {
-      case "NO_SCHEDULE":
-      case "NO_SATS": return "kein Satellit"
-      case "OBSTRUCTED": return "Hindernis"
-      case "NO_DOWNLINK": return "kein Empfang"
-      case "NO_PINGS": return "kein Netz"
-      case "BOOTING":
-      case "SEARCHING": return "sucht"
-      case "THERMAL_SHUTDOWN": return "überhitzt"
-      default: return "Unterbruch"
-    }
-  }
-
   function fmtMbit(bps) {
     var v = Number(bps)
     if (!isFinite(v) || v < 0) return "–"
@@ -88,6 +85,33 @@ Panel {
     var h = Math.floor(v / 3600), m = Math.floor((v % 3600) / 60)
     if (h >= 48) return Math.floor(h / 24) + " d " + (h % 24) + " h"
     return h + " h " + m + " min"
+  }
+
+  function fmtDuration(s) {
+    var v = Math.round(Number(s))
+    if (!isFinite(v) || v < 0) return "–"
+    if (v < 60) return v + " s"
+    if (v < 3600) return Math.floor(v / 60) + " min " + (v % 60) + " s"
+    return Math.floor(v / 3600) + " h " + Math.floor((v % 3600) / 60) + " min"
+  }
+
+  // Uhrzeit; liegt der Zeitpunkt nicht am heutigen Tag, mit Wochentag davor.
+  function fmtClock(ts) {
+    var d = new Date(Number(ts) * 1000)
+    var now = new Date(root.nowMs)
+    var sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+    return sameDay ? Qt.formatTime(d, "HH:mm") : Qt.formatDateTime(d, "ddd HH:mm")
+  }
+
+  function parse(text) {
+    var line = String(text || "").trim()
+    if (line === "") return
+    try {
+      root.data = JSON.parse(line)
+      root.lastError = root.data.ok ? "" : String(root.data.error || "Schüssel nicht erreichbar")
+    } catch (e) {
+      // halb geschriebene Datei: alten Stand behalten
+    }
   }
 
   // ---- Öffnen und Schliessen, wie bei den eingebauten Panels
@@ -116,35 +140,26 @@ Panel {
     return false
   }
 
-  function refresh() {
-    if (!statusProc.running) statusProc.running = true
+  function refresh() { stateFile.reload() }
+
+  FileView {
+    id: stateFile
+    path: root.statePath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.parse(text())
+    onLoadFailed: { root.data = null; root.lastError = "Sammler läuft nicht" }
   }
 
-  Process {
-    id: statusProc
-    command: ["bash", root.scriptPath]
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        var line = String(text || "").trim()
-        if (line === "") return
-        try {
-          root.data = JSON.parse(line)
-          root.lastError = root.data.ok ? "" : String(root.data.error || "Schüssel nicht erreichbar")
-          root.lastUpdateMs = Date.now()
-        } catch (e) {
-          root.lastError = "Antwort nicht lesbar"
-        }
-      }
-    }
-  }
-
+  // Der Sammler ersetzt die Datei atomar; der Dateiwächter verliert dabei
+  // manchmal den Faden. Darum zusätzlich alle 2 s lesen (die Datei ist klein).
   Timer {
-    interval: root.refreshSec * 1000
+    interval: 2000
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.refresh()
+    onTriggered: { root.nowMs = Date.now(); stateFile.reload() }
   }
 
   // ---- Das Panel selbst
@@ -155,7 +170,7 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(300))
+    contentWidth: panel.fittedContentWidth(Style.space(360))
     contentHeight: panel.fittedContentHeight(column.implicitHeight)
 
     PanelKeyCatcher {
@@ -207,12 +222,26 @@ Panel {
             color: !root.reachable ? column.dim : (root.connected ? column.accent : column.urgent)
           }
           Text {
-            text: !root.reachable ? "Schüssel nicht erreichbar" : root.reason(root.state)
+            text: {
+              if (!root.haveFile || root.stale) return "Sammler meldet sich nicht"
+              if (!root.reachable) return "Schüssel nicht erreichbar"
+              return root.reason(root.state)
+            }
             color: column.fg
             font.family: column.family
             font.pixelSize: Style.font.subtitle
             font.bold: true
           }
+        }
+
+        // Laufender Unterbruch
+        Text {
+          visible: root.reachable && root.currentOutage !== null
+          leftPadding: Style.space(18)
+          text: root.currentOutage ? "seit " + root.fmtClock(root.currentOutage.start) + ", " + root.fmtDuration(root.nowMs / 1000 - Number(root.currentOutage.start)) : ""
+          color: column.urgent
+          font.family: column.family
+          font.pixelSize: Style.font.body
         }
 
         // Kennzahlen; Flow bricht um, wenn die Zeile zu lang wird
@@ -246,9 +275,75 @@ Panel {
           font.pixelSize: Style.font.bodySmall
         }
 
+        // Unterbrüche seit Rechnerstart
+        PanelSectionHeader {
+          text: "UNTERBRÜCHE SEIT START"
+          foreground: column.fg
+          fontFamily: column.family
+        }
+
+        Text {
+          visible: root.recentOutages.length === 0
+          text: root.haveFile ? "keine seit " + root.fmtClock(root.data.boot) : "–"
+          color: column.dim
+          font.family: column.family
+          font.pixelSize: Style.font.body
+        }
+
+        Column {
+          width: parent.width
+          spacing: 0
+          Repeater {
+            model: root.recentOutages
+            delegate: Item {
+              required property var modelData
+              width: column.width
+              height: rowText.implicitHeight + Style.space(10)
+              Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: column.dim; opacity: 0.25 }
+              Text {
+                id: rowText
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.fmtClock(modelData.start)
+                color: column.dim
+                font.family: column.family
+                font.pixelSize: Style.font.body
+              }
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: rowText.right
+                anchors.leftMargin: Style.space(12)
+                anchors.right: durText.left
+                anchors.rightMargin: Style.space(8)
+                elide: Text.ElideRight
+                text: root.reason(modelData.cause)
+                color: column.fg
+                font.family: column.family
+                font.pixelSize: Style.font.body
+              }
+              Text {
+                id: durText
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right
+                text: root.fmtDuration(modelData.duration_s)
+                color: column.dim
+                font.family: column.family
+                font.pixelSize: Style.font.body
+              }
+            }
+          }
+        }
+
+        Text {
+          visible: root.outages.length > root.recentOutages.length
+          text: "und " + (root.outages.length - root.recentOutages.length) + " weitere"
+          color: column.dim
+          font.family: column.family
+          font.pixelSize: Style.font.bodySmall
+        }
+
         // Fehler
         Text {
-          visible: root.lastError !== ""
+          visible: root.lastError !== "" && !root.reachable
           width: parent.width
           wrapMode: Text.WordWrap
           text: root.lastError
@@ -259,7 +354,7 @@ Panel {
 
         // Fusszeile
         Text {
-          text: root.lastUpdateMs > 0 ? "zuletzt " + Qt.formatTime(new Date(root.lastUpdateMs), "HH:mm:ss") + " · alle " + root.refreshSec + " s" : "warte auf erste Antwort"
+          text: root.haveFile ? "Stand " + Qt.formatTime(new Date(Number(root.data.ts) * 1000), "HH:mm:ss") + " · Sammler fragt alle " + (root.data.interval_s || 2) + " s" : "warte auf den Sammler"
           color: column.dim
           font.family: column.family
           font.pixelSize: Style.font.caption

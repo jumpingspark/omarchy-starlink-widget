@@ -1,0 +1,13 @@
+[Unit]
+Description=Starlink-Sammler: Zustand und Unterbrüche der Schüssel
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/Work/starlink-widget/bin/starlink-collector
+Restart=always
+RestartSec=10
+Nice=10
+
+[Install]
+WantedBy=default.target
