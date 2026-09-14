@@ -70,28 +70,50 @@ Panel {
   }
   readonly property bool weak: connected && weakness.weak
 
-  // Status in Worten, wie bei den Panels für Netzwerk und Akku. Englisch, mit Augenzwinkern.
-  readonly property string phrase: {
-    if (!haveFile || stale) return "Ground control isn't answering"
-    if (!reachable) return "Dish is off the grid"
+  // Status in Worten, wie beim Akku-Panel: kurze Sprüche aus dem Weltall,
+  // je Zustand eine Liste, alle 2.8 s der nächste, solange das Panel offen ist.
+  readonly property var phrasesGood: ["Orbiting smoothly", "Riding the beam", "Surfing low orbit", "Beaming down bits", "Talking to the stars", "Catching satellites", "Pinging the sky", "Locked on orbit", "Cruising at 550 km"]
+  readonly property var phrasesLoss: ["Dropping packets", "Leaking bits", "Losing the beam", "Static in orbit", "Shedding packets"]
+  readonly property var phrasesLatency: ["Taking the scenic orbit", "Long way round", "Lagging behind", "Slow beam tonight", "Signal detour"]
+  readonly property var phrasesNoSat: ["Waiting for a satellite", "Sky's empty", "Between satellites", "No bird overhead"]
+  readonly property var phrasesObstructed: ["Blocked view", "Something in the way", "Sky's obstructed"]
+  readonly property var phrasesNoDownlink: ["Sky went quiet", "No beam coming down"]
+  readonly property var phrasesNoPings: ["Satellite fine, ground not", "Ground side down"]
+  readonly property var phrasesThermal: ["Cooling off", "Too hot to beam"]
+  readonly property var phrasesSearching: ["Scanning the heavens", "Hunting satellites"]
+  readonly property var phrasesStowed: ["Dish napping", "Folded up"]
+  readonly property var phrasesLost: ["Lost in space", "Houston, we have a problem"]
+  readonly property var phrasesNoDish: ["Dish off the grid", "No dish in sight"]
+  readonly property var phrasesNoCollector: ["Ground control silent", "Houston, come in"]
+
+  readonly property var activePhrases: {
+    if (!haveFile || stale) return phrasesNoCollector
+    if (!reachable) return phrasesNoDish
     if (down) {
       switch (state) {
         case "NO_SCHEDULE":
-        case "NO_SATS": return "Waiting for the next satellite to swing by"
-        case "OBSTRUCTED": return "Something's standing in the way"
-        case "NO_DOWNLINK": return "The sky has gone quiet"
-        case "NO_PINGS": return "Satellite's fine, the internet isn't"
-        case "THERMAL_SHUTDOWN": return "Too hot to handle, cooling off"
+        case "NO_SATS": return phrasesNoSat
+        case "OBSTRUCTED": return phrasesObstructed
+        case "NO_DOWNLINK": return phrasesNoDownlink
+        case "NO_PINGS": return phrasesNoPings
+        case "THERMAL_SHUTDOWN": return phrasesThermal
         case "BOOTING":
-        case "SEARCHING": return "Scanning the heavens"
-        case "STOWED": return "Dish is taking a nap"
-        default: return "Lost in space"
+        case "SEARCHING": return phrasesSearching
+        case "STOWED": return phrasesStowed
+        default: return phrasesLost
       }
     }
-    if (weak) return weakness.why === "loss" ? "Dropping packets like hot potatoes" : "Signal's taking the scenic route"
-    if (latencyMs >= 0 && latencyMs < 40) return "Smooth sailing through the stars"
-    if (latencyMs >= 0 && latencyMs < 80) return "Cruising at orbital speed"
-    return "Holding on, a little stretched"
+    if (weak) return weakness.why === "loss" ? phrasesLoss : phrasesLatency
+    return phrasesGood
+  }
+  property int phraseIndex: 0
+  readonly property string phrase: activePhrases[phraseIndex % activePhrases.length]
+
+  Timer {
+    interval: 2800
+    running: root.opened
+    repeat: true
+    onTriggered: root.phraseIndex = (root.phraseIndex + 1) % root.activePhrases.length
   }
 
   // Zustand in einem Wort, unter dem Spruch
