@@ -42,6 +42,67 @@ Panel {
     return list.slice(0, 8)
   }
 
+  // Schwach: über die letzte Minute im Mittel mehr als 5 % Paketverlust oder
+  // eine mittlere Verzögerung über 150 ms. Ein einzelner Ausreisser zählt nicht.
+  readonly property int weakWindowS: 60
+  readonly property real weakDrop: 0.05
+  readonly property real weakLatencyMs: 150
+  readonly property var weakness: {
+    if (!reachable || !data.history) return { weak: false, why: "" }
+    var t0 = nowMs / 1000 - weakWindowS
+    var drops = [], lats = []
+    for (var i = 0; i < data.history.length; i++) {
+      var h = data.history[i]
+      if (h[0] < t0) continue
+      if (h[2] !== null && h[2] !== undefined) drops.push(Number(h[2]))
+      if (h[1] !== null && h[1] !== undefined) lats.push(Number(h[1]))
+    }
+    if (drops.length < 10) return { weak: false, why: "" }
+    var sum = 0
+    for (var d = 0; d < drops.length; d++) sum += drops[d]
+    if (sum / drops.length > weakDrop) return { weak: true, why: "loss", value: sum / drops.length * 100 }
+    if (lats.length >= 10) {
+      lats.sort(function(a, b) { return a - b })
+      var med = lats[Math.floor(lats.length / 2)]
+      if (med > weakLatencyMs) return { weak: true, why: "latency", value: med }
+    }
+    return { weak: false, why: "" }
+  }
+  readonly property bool weak: connected && weakness.weak
+
+  // Status in Worten, wie bei den Panels für Netzwerk und Akku. Englisch, mit Augenzwinkern.
+  readonly property string phrase: {
+    if (!haveFile || stale) return "Ground control isn't answering"
+    if (!reachable) return "Dish is off the grid"
+    if (down) {
+      switch (state) {
+        case "NO_SCHEDULE":
+        case "NO_SATS": return "Waiting for the next satellite to swing by"
+        case "OBSTRUCTED": return "Something's standing in the way"
+        case "NO_DOWNLINK": return "The sky has gone quiet"
+        case "NO_PINGS": return "Satellite's fine, the internet isn't"
+        case "THERMAL_SHUTDOWN": return "Too hot to handle, cooling off"
+        case "BOOTING":
+        case "SEARCHING": return "Scanning the heavens"
+        case "STOWED": return "Dish is taking a nap"
+        default: return "Lost in space"
+      }
+    }
+    if (weak) return weakness.why === "loss" ? "Dropping packets like hot potatoes" : "Signal's taking the scenic route"
+    if (latencyMs >= 0 && latencyMs < 40) return "Smooth sailing through the stars"
+    if (latencyMs >= 0 && latencyMs < 80) return "Cruising at orbital speed"
+    return "Holding on, a little stretched"
+  }
+
+  // Zustand in einem Wort, unter dem Spruch
+  readonly property string stateLine: {
+    if (!haveFile || stale) return "Sammler meldet sich nicht"
+    if (!reachable) return "Schüssel nicht erreichbar"
+    if (down) return reason(state)
+    if (weak) return weakness.why === "loss" ? "Schwach: " + weakness.value.toFixed(0) + " % Verlust über eine Minute" : "Schwach: " + weakness.value.toFixed(0) + " ms über eine Minute"
+    return "Verbunden"
+  }
+
   // Symbol in der Bar (Nerd Font, Satellitenschüssel U+EF60, fa-satellite_dish, von David gewählt);
   // der Tooltip trägt die Zahlen.
   readonly property string glyph: "\uEF60"
@@ -49,7 +110,7 @@ Panel {
     if (!haveFile || stale) return "Starlink: Sammler meldet sich nicht"
     if (!reachable) return "Starlink: Schüssel nicht erreichbar"
     if (down) return "Starlink: " + reason(state)
-    if (latencyMs >= 0) return "Starlink " + Math.round(latencyMs) + " ms"
+    if (latencyMs >= 0) return "Starlink " + Math.round(latencyMs) + " ms · " + phrase
     return "Starlink verbunden"
   }
 
@@ -213,24 +274,36 @@ Panel {
           }
         }
 
-        // Zustand
+        // Zustand: Punkt, Spruch, Zustand in Worten
         Row {
-          spacing: Style.space(8)
+          width: parent.width
+          spacing: Style.space(10)
           Rectangle {
             width: Style.space(10); height: width; radius: width / 2
             anchors.verticalCenter: parent.verticalCenter
-            color: !root.reachable ? column.dim : (root.connected ? column.accent : column.urgent)
+            color: !root.reachable ? column.dim : (root.down ? column.urgent : (root.weak ? column.accent : column.accent))
+            opacity: root.weak ? 0.55 : 1
           }
-          Text {
-            text: {
-              if (!root.haveFile || root.stale) return "Sammler meldet sich nicht"
-              if (!root.reachable) return "Schüssel nicht erreichbar"
-              return root.reason(root.state)
+          Column {
+            width: parent.width - Style.space(20)
+            spacing: Style.space(2)
+            Text {
+              width: parent.width
+              wrapMode: Text.WordWrap
+              text: root.phrase
+              color: column.fg
+              font.family: column.family
+              font.pixelSize: Style.font.subtitle
+              font.bold: true
             }
-            color: column.fg
-            font.family: column.family
-            font.pixelSize: Style.font.subtitle
-            font.bold: true
+            Text {
+              width: parent.width
+              wrapMode: Text.WordWrap
+              text: root.stateLine
+              color: root.down || root.weak ? column.urgent : column.dim
+              font.family: column.family
+              font.pixelSize: Style.font.bodySmall
+            }
           }
         }
 

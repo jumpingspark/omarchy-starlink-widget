@@ -64,6 +64,8 @@ BarWidget {
     bar: root.bar
     text: panelLoader.item ? panelLoader.item.glyph : "\uEF60"
     active: panelLoader.item ? panelLoader.item.down : false
+    // schwach: Symbol halb gedämpft, damit es auffällt, ohne Alarm zu schreien
+    opacity: panelLoader.item && panelLoader.item.weak ? 0.5 : 1
     tooltipText: panelLoader.item ? panelLoader.item.tooltip : "Starlink"
 
     onPressed: function(b) {
