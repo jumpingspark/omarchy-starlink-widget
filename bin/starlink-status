@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Fragt die Starlink-Schüssel einmal ab und gibt eine JSON-Zeile aus.
+# Nutzt die Python-Umgebung von ~/Work/starlink-grpc-tools mit.
+set -euo pipefail
+
+TOOLS="${STARLINK_TOOLS:-$HOME/Work/starlink-grpc-tools}"
+PY="$TOOLS/.venv/bin/python"
+
+if [[ ! -x "$PY" ]]; then
+  printf '{"ok":false,"error":"python fehlt: %s"}\n' "$PY"
+  exit 0
+fi
+
+exec "$PY" - "$TOOLS" <<'PYEOF'
+import json
+import sys
+import time
+
+sys.path.insert(0, sys.argv[1])
+
+out = {"ok": False, "ts": int(time.time())}
+try:
+    import starlink_grpc
+    ctx = starlink_grpc.ChannelContext()
+    try:
+        status, obstruction, alerts = starlink_grpc.status_data(ctx)
+    finally:
+        ctx.close()
+    active_alerts = [name for name, on in alerts.items() if on]
+    out.update({
+        "ok": True,
+        "state": status.get("state", ""),
+        "latency_ms": status.get("pop_ping_latency_ms"),
+        "drop": status.get("pop_ping_drop_rate"),
+        "down_bps": status.get("downlink_throughput_bps"),
+        "up_bps": status.get("uplink_throughput_bps"),
+        "uptime_s": status.get("uptime"),
+        "obstructed": status.get("currently_obstructed"),
+        "fraction_obstructed": status.get("fraction_obstructed"),
+        "alerts": active_alerts,
+    })
+except Exception as e:  # Schüssel nicht erreichbar oder anderer Fehler
+    out["error"] = str(e).splitlines()[0] if str(e) else e.__class__.__name__
+
+print(json.dumps(out))
+PYEOF
