@@ -264,6 +264,117 @@ Panel {
           }
         }
 
+        // Verlauf der Verzögerung, letzte 15 Minuten
+        PanelSectionHeader {
+          text: "VERZÖGERUNG, 15 MINUTEN"
+          foreground: column.fg
+          fontFamily: column.family
+        }
+
+        Canvas {
+          id: chart
+          width: parent.width
+          height: Style.space(84)
+          visible: root.haveFile
+
+          readonly property int spanS: 15 * 60
+          readonly property var history: root.haveFile && root.data.history ? root.data.history : []
+
+          onHistoryChanged: requestPaint()
+          onWidthChanged: requestPaint()
+          Connections {
+            target: root
+            function onNowMsChanged() { chart.requestPaint() }
+          }
+
+          onPaint: {
+            var ctx = getContext("2d")
+            ctx.reset()
+            var w = width, h = height
+            var padL = Style.space(28), padR = Style.space(4), padT = Style.space(6), padB = Style.space(18)
+            var plotW = w - padL - padR, plotH = h - padT - padB
+            var now = root.nowMs / 1000
+            var t0 = now - spanS
+            var pts = history
+
+            // Skala: mindestens 100 ms, sonst die nächste runde Stufe über dem Maximum
+            var maxV = 0
+            for (var i = 0; i < pts.length; i++) {
+              var v = pts[i][1]
+              if (v !== null && v !== undefined && isFinite(v) && v > maxV) maxV = v
+            }
+            var steps = [100, 150, 200, 300, 500, 1000, 2000]
+            var yMax = steps[steps.length - 1]
+            for (var k = 0; k < steps.length; k++) { if (maxV <= steps[k]) { yMax = steps[k]; break } }
+
+            function x(t) { return padL + (t - t0) / spanS * plotW }
+            function y(v) { return padT + plotH - Math.min(v, yMax) / yMax * plotH }
+
+            var fg = String(column.fg), dim = String(column.dim)
+            ctx.font = Style.font.caption + "px " + column.family
+
+            // Raster und Achsenbeschriftung
+            ctx.strokeStyle = dim
+            ctx.globalAlpha = 0.25
+            ctx.lineWidth = 1
+            var levels = [0, 0.5, 1]
+            for (var l = 0; l < levels.length; l++) {
+              var yy = Math.round(y(yMax * levels[l])) + 0.5
+              ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(w - padR, yy); ctx.stroke()
+            }
+            ctx.globalAlpha = 1
+            ctx.fillStyle = dim
+            ctx.textAlign = "right"
+            ctx.textBaseline = "middle"
+            ctx.fillText(String(yMax), padL - Style.space(4), y(yMax))
+            ctx.fillText(String(yMax / 2), padL - Style.space(4), y(yMax / 2))
+            ctx.textBaseline = "top"
+            ctx.textAlign = "left";   ctx.fillText("-15 min", padL, padT + plotH + Style.space(3))
+            ctx.textAlign = "center"; ctx.fillText("-10", x(now - 600), padT + plotH + Style.space(3))
+            ctx.fillText("-5", x(now - 300), padT + plotH + Style.space(3))
+            ctx.textAlign = "right";  ctx.fillText("jetzt", w - padR, padT + plotH + Style.space(3))
+
+            // Unterbrüche als Band: Messpunkte ohne Verzögerung oder mit vollem Verlust
+            ctx.fillStyle = String(column.urgent)
+            ctx.globalAlpha = 0.18
+            var gapStart = -1
+            for (var g = 0; g <= pts.length; g++) {
+              var isGap = g < pts.length && (pts[g][1] === null || pts[g][1] === undefined || Number(pts[g][2]) >= 1)
+              if (isGap && gapStart < 0) gapStart = pts[g][0]
+              if (!isGap && gapStart >= 0) {
+                var gEnd = g < pts.length ? pts[g][0] : now
+                var gx = Math.max(padL, x(gapStart))
+                ctx.fillRect(gx, padT, Math.max(2, x(gEnd) - gx), plotH)
+                gapStart = -1
+              }
+            }
+            ctx.globalAlpha = 1
+
+            // Die Kurve; Lücken bleiben Lücken
+            ctx.strokeStyle = String(column.accent)
+            ctx.lineWidth = 1.5
+            ctx.lineJoin = "round"
+            var drawing = false
+            ctx.beginPath()
+            for (var j = 0; j < pts.length; j++) {
+              var t = pts[j][0], val = pts[j][1]
+              if (t < t0) continue
+              var ok = val !== null && val !== undefined && isFinite(val) && Number(pts[j][2]) < 1
+              if (!ok) { drawing = false; continue }
+              if (!drawing) { ctx.moveTo(x(t), y(val)); drawing = true }
+              else ctx.lineTo(x(t), y(val))
+            }
+            ctx.stroke()
+
+            // Hinweis, wenn noch wenig Daten da sind
+            if (pts.length > 0 && pts[0][0] > t0 + 60) {
+              ctx.fillStyle = dim
+              ctx.textAlign = "left"; ctx.textBaseline = "top"
+              ctx.fillText("Sammler läuft seit " + root.fmtClock(pts[0][0]), padL + Style.space(4), padT)
+            }
+          }
+        }
+
         // Hinweise der Schüssel (Alerts), falls welche anliegen
         Text {
           visible: root.reachable && root.data.alerts && root.data.alerts.length > 0
