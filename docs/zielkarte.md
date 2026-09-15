@@ -83,16 +83,22 @@ Ideen und Wünsche, die auf den Zielsatz einzahlen, aber nicht jetzt. Ein Satz j
 
 ## Letzter Stand
 
-15. September 2026, 13:35: Vier Scheiben stehen. Ohne Starlink läuft nur ein wartender Wächter,
-das Symbol ist weg, geprüft gestellt; der echte WLAN-Wechsel ist die letzte offene Annahme. David
-entscheidet den Abschluss: fertig, weiter oder parken.
+15. September 2026, 13:50: Geparkt. Vier Scheiben stehen, das Plugin ist aus GitHub installiert
+und läuft. Beim nächsten echten Wechsel in ein fremdes WLAN prüfen: Symbol weg, kein Sammler; und
+zurück im Starlink-Netz: Symbol innert einer halben Minute wieder da. Sonst nichts offen.
 
 ## Abschluss
 
-Erst ausfüllen, wenn der Zielsatz wahr ist.
+Zielsatz wahr am 15. September 2026, nach vier Scheiben an einem Tag.
 
-- War der Zielsatz nach der ersten Scheibe in ein bis zwei Tagen wahr? …
-- Sind die Runden länger geworden? …
-- Musste David nach dem Stand fragen? …
-- Wurde ein Entscheid gekippt, weil eine Annahme nicht stimmte? …
-- Davids Entscheid: fertig / weiter mit Scheibe … / parken, weil …
+- War der Zielsatz nach der ersten Scheibe in ein bis zwei Tagen wahr? Nein, erst nach drei
+  Scheiben, aber alle am selben Tag; die vierte kam als Wunsch dazu, als das Ziel schon stand.
+- Sind die Runden länger geworden? Ja. Scheibe 2 und 4 waren je doppelt so lang wie geplant, beide
+  wegen Fehlern beim Zusammenspiel mit der Shell (Eingabe sofort zu, hartes Beenden), die erst der
+  gestellte Test zeigte.
+- Musste David nach dem Stand fragen? Einmal, in der Wartezeit von Scheibe 2. Der Stand kam dort
+  nicht ungefragt.
+- Wurde ein Entscheid gekippt, weil eine Annahme nicht stimmte? Dreimal, jeweils klein und sofort:
+  Sammler an der Eingabe, Lauscher erbt die Sperre, Shell beendet sanft.
+- Davids Entscheid: parken (15. September 2026). Das Widget läuft und ist installiert; offen bleibt
+  nur der Beleg beim nächsten echten Wechsel in ein fremdes WLAN, den David in den Ferien erlebt.
