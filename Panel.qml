@@ -5,8 +5,8 @@ import qs.Commons
 import qs.Ui
 
 // Das Klick-Panel: Zustand, Kennzahlen und die Unterbrüche seit Rechnerstart.
-// Die Daten schreibt der Sammler (bin/starlink-collector, Benutzerdienst)
-// nach ~/.local/state/starlink/status.json; das Panel liest nur.
+// Die Daten schreibt der Sammler (bin/starlink-collector, vom Bar-Widget
+// gestartet) nach ~/.local/state/starlink/status.json; das Panel liest nur.
 Panel {
   id: root
   moduleName: "dd.starlink"
@@ -33,7 +33,8 @@ Panel {
   // Starlink online (fremdes WLAN, Kabel). Dann verschwindet das Widget aus der Bar.
   // Ein Sammler, der sich nicht meldet, ist dagegen ein Fehler und bleibt sichtbar.
   readonly property int goneAfterS: 30
-  readonly property bool gone: haveFile && !stale && data.ok !== true
+  readonly property bool setup: haveFile && data.setup === true
+  readonly property bool gone: haveFile && !stale && !setup && data.ok !== true
     && (data.last_ok === null || data.last_ok === undefined || (Number(data.ts) - Number(data.last_ok)) > goneAfterS)
   onGoneChanged: if (gone && opened) close()
   readonly property string state: reachable ? String(data.state || "") : ""
@@ -126,6 +127,7 @@ Panel {
   // Zustand in einem Wort, unter dem Spruch
   readonly property string stateLine: {
     if (!haveFile || stale) return "Sammler meldet sich nicht"
+    if (setup) return String(data.error || "Sammler richtet sich ein")
     if (!reachable) return "Schüssel nicht erreichbar"
     if (down) return reason(state)
     if (weak) return weakness.why === "loss" ? "Schwach: " + weakness.value.toFixed(0) + " % Verlust über eine Minute" : "Schwach: " + weakness.value.toFixed(0) + " ms über eine Minute"
@@ -137,6 +139,7 @@ Panel {
   readonly property string glyph: "\uEF60"
   readonly property string tooltip: {
     if (!haveFile || stale) return "Starlink: Sammler meldet sich nicht"
+    if (setup) return "Starlink: " + String(data.error || "Sammler richtet sich ein")
     if (!reachable) return "Starlink: Schüssel nicht erreichbar"
     if (down) return "Starlink: " + reason(state)
     if (latencyMs >= 0) return "Starlink " + Math.round(latencyMs) + " ms · " + phrase

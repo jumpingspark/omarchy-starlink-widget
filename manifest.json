@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "dd.starlink",
   "name": "Starlink",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": "dd",
   "license": "MIT",
-  "description": "Starlink-Verbindung in der Bar: Verzögerung, Zustand und Grund eines Unterbruchs.",
+  "description": "Starlink in der Omarchy-Bar: Symbol nur im Starlink-Netz, Panel mit Zustand, Verzögerung, Grund und Liste der Unterbrüche.",
   "kinds": [
     "bar-widget"
   ],

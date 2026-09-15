@@ -1,23 +1,51 @@
 #!/usr/bin/env bash
 # Sammler: fragt die Starlink-Schüssel laufend ab, erkennt Unterbrüche und
 # schreibt den Stand nach ~/.local/state/starlink/status.json.
-# Läuft als Benutzerdienst (systemd --user), solange der Rechner läuft.
-# Ist keine Schüssel erreichbar (nicht über Starlink online), wartet er.
+# Das Bar-Widget startet ihn und hält ihn am Leben; endet das Widget (Shell
+# neu gestartet, Plugin entfernt), schliesst sich seine Eingabe und er beendet
+# sich selbst. Eine Sperre sorgt dafür, dass nur ein Sammler läuft.
+# Beim ersten Start richtet er sich seine Python-Umgebung selbst ein
+# (~/.local/share/starlink-widget/venv, Paket starlink-grpc-core).
 set -euo pipefail
 
-TOOLS="${STARLINK_TOOLS:-$HOME/Work/starlink-grpc-tools}"
-PY="$TOOLS/.venv/bin/python"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/starlink"
+VENV="${XDG_DATA_HOME:-$HOME/.local/share}/starlink-widget/venv"
+PY="$VENV/bin/python"
 mkdir -p "$STATE_DIR"
 
-exec "$PY" -u - "$TOOLS" "$STATE_DIR" <<'PYEOF'
+# Nur ein Sammler zur Zeit (Bar auf zwei Bildschirmen, Neustart der Shell).
+exec 9>"$STATE_DIR/collector.lock"
+flock -n 9 || exit 0
+
+write_status() {
+  # $1: Meldung. Schreibt einen Stand ohne Schüssel, damit das Panel etwas sagen kann.
+  local tmp="$STATE_DIR/status.json.tmp"
+  printf '{"ts": %d, "ok": false, "setup": true, "error": %s, "outages": [], "history": [], "current_outage": null}\n' \
+    "$(date +%s)" "$(printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" >"$tmp"
+  mv -f "$tmp" "$STATE_DIR/status.json"
+}
+
+if ! "$PY" -c 'import starlink_grpc' >/dev/null 2>&1; then
+  write_status "Python-Umgebung wird eingerichtet"
+  {
+    echo "== $(date -Is) richte $VENV ein"
+    rm -rf "$VENV"
+    python3 -m venv "$VENV"
+    "$PY" -m pip install --quiet --disable-pip-version-check starlink-grpc-core
+  } >>"$STATE_DIR/setup.log" 2>&1 || {
+    write_status "Einrichtung fehlgeschlagen, siehe $STATE_DIR/setup.log"
+    exit 1
+  }
+fi
+
+exec "$PY" -u - "$STATE_DIR" <<'PYEOF'
 import json
 import os
 import sys
+import threading
 import time
 
-sys.path.insert(0, sys.argv[1])
-state_dir = sys.argv[2]
+state_dir = sys.argv[1]
 status_path = os.path.join(state_dir, "status.json")
 outages_path = os.path.join(state_dir, "outages.jsonl")
 
@@ -26,6 +54,19 @@ HISTORY_S = 15 * 60     # Verlauf, den status.json trägt
 MAX_OUTAGES = 200       # Unterbrüche, die status.json trägt
 
 import starlink_grpc
+
+
+# Das Widget hält unsere Eingabe offen. Schliesst sie sich, ist das Widget weg,
+# und wir gehen mit.
+def watch_stdin():
+    try:
+        sys.stdin.read()
+    except Exception:
+        pass
+    os._exit(0)
+
+
+threading.Thread(target=watch_stdin, daemon=True).start()
 
 
 def boot_time():

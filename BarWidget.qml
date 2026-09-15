@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -49,6 +50,24 @@ BarWidget {
 
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
+
+  // Der Sammler läuft, solange das Widget lebt. Er hängt an unserer Eingabe:
+  // schliesst sie sich, beendet er sich. Stirbt er, kommt er nach 15 s wieder.
+  readonly property string collectorPath: String(Qt.resolvedUrl("bin/starlink-collector")).replace(/^file:\/\//, "")
+
+  Process {
+    id: collector
+    command: [root.collectorPath]
+    stdinEnabled: true
+    running: true
+    onExited: restartCollector.start()
+  }
+
+  Timer {
+    id: restartCollector
+    interval: 15000
+    onTriggered: collector.running = true
+  }
 
   Loader {
     id: panelLoader
