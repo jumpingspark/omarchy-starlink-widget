@@ -19,12 +19,14 @@ Aktualisieren: `omarchy plugin update dd.starlink`. Entfernen: `omarchy plugin r
 ## Teile
 
 - `BarWidget.qml`, `Panel.qml`, `manifest.json`: das Bar-Widget (Quickshell). Das Widget startet
-  den Sammler und hält ihn am Leben; endet das Widget, endet der Sammler.
+  den Wächter und hält ihn am Leben; endet das Widget, enden Wächter und Sammler.
+- `bin/starlink-watch`: der Wächter. Er wartet auf Netzwechsel des Systems, prüft dann, ob die
+  Schüssel auf 192.168.100.1 antwortet, und startet oder stoppt den Sammler. Ohne Starlink läuft
+  nur er, wartend, und das Symbol ist nicht in der Bar.
 - `bin/starlink-collector`: der Sammler. Er fragt die Schüssel alle 2 Sekunden, erkennt Unterbrüche
   (Zustand ungleich `CONNECTED`, mit dem Grund, den die Schüssel nennt) und schreibt
   `~/.local/state/starlink/status.json` (Stand, Verlauf der letzten 15 Minuten, Unterbrüche seit
-  Rechnerstart) sowie `outages.jsonl` (alle Unterbrüche, fortlaufend). Antwortet die Schüssel
-  30 Sekunden nicht (fremdes WLAN, Kabel), verschwindet das Symbol aus der Bar.
+  Rechnerstart) sowie `outages.jsonl` (alle Unterbrüche, fortlaufend).
 - `docs/zielkarte.md`: Ziel, Stand und Entscheide des Vorhabens.
 
 ## Entwickeln

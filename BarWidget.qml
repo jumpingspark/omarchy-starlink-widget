@@ -51,22 +51,22 @@ BarWidget {
   onBarChanged: injectPanel()
   onSettingsChanged: injectPanel()
 
-  // Der Sammler läuft, solange das Widget lebt: Quickshell beendet ihn mit dem
-  // Widget, und stirbt die Shell, merkt er es am Elternprozess. Stirbt er
-  // selbst, kommt er nach 15 s wieder.
-  readonly property string collectorPath: String(Qt.resolvedUrl("bin/starlink-collector")).replace(/^file:\/\//, "")
+  // Der Wächter läuft, solange das Widget lebt: Quickshell beendet ihn mit dem
+  // Widget, und stirbt die Shell, merkt er es am Elternprozess. Er startet den
+  // Sammler nur im Starlink-Netz. Stirbt er selbst, kommt er nach 15 s wieder.
+  readonly property string watchPath: String(Qt.resolvedUrl("bin/starlink-watch")).replace(/^file:\/\//, "")
 
   Process {
-    id: collector
-    command: [root.collectorPath]
+    id: watcher
+    command: [root.watchPath]
     running: true
-    onExited: restartCollector.start()
+    onExited: restartWatcher.start()
   }
 
   Timer {
-    id: restartCollector
+    id: restartWatcher
     interval: 15000
-    onTriggered: collector.running = true
+    onTriggered: watcher.running = true
   }
 
   Loader {

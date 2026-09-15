@@ -32,13 +32,14 @@ Panel {
   readonly property bool haveFile: data !== null
   readonly property bool stale: haveFile && (nowMs / 1000 - Number(data.ts || 0)) > staleAfterS
   readonly property bool reachable: haveFile && !stale && data.ok === true
-  // Weg: die Schüssel antwortet seit einer Weile nicht, also sind wir nicht über
-  // Starlink online (fremdes WLAN, Kabel). Dann verschwindet das Widget aus der Bar.
-  // Ein Sammler, der sich nicht meldet, ist dagegen ein Fehler und bleibt sichtbar.
+  // Weg: der Wächter sagt, wir sind nicht im Starlink-Netz (gone), oder die
+  // Schüssel antwortet seit einer Weile nicht. Dann verschwindet das Widget aus
+  // der Bar. Ein Sammler, der sich nicht meldet, ist dagegen ein Fehler und
+  // bleibt sichtbar.
   readonly property int goneAfterS: 30
   readonly property bool setup: haveFile && data.setup === true
-  readonly property bool gone: haveFile && !stale && !setup && data.ok !== true
-    && (data.last_ok === null || data.last_ok === undefined || (Number(data.ts) - Number(data.last_ok)) > goneAfterS)
+  readonly property bool gone: haveFile && (data.gone === true || (!stale && !setup && data.ok !== true
+    && (data.last_ok === null || data.last_ok === undefined || (Number(data.ts) - Number(data.last_ok)) > goneAfterS)))
   onGoneChanged: if (gone && opened) close()
   readonly property string state: reachable ? String(data.state || "") : ""
   readonly property bool connected: reachable && state === "CONNECTED"
@@ -218,9 +219,10 @@ Panel {
   }
 
   // Der Sammler ersetzt die Datei atomar; der Dateiwächter verliert dabei
-  // manchmal den Faden. Darum zusätzlich alle 2 s lesen (die Datei ist klein).
+  // manchmal den Faden. Darum zusätzlich alle 2 s lesen (die Datei ist klein);
+  // ohne Starlink nur jede Minute, damit das Widget im Ruhezustand fast nichts tut.
   Timer {
-    interval: 2000
+    interval: root.gone ? 60000 : 2000
     running: true
     repeat: true
     triggeredOnStart: true

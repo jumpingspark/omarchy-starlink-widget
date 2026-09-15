@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# Wächter: läuft, solange das Bar-Widget lebt, und braucht dabei fast nichts.
+# Er wartet auf Routen-Ereignisse des Systems (Netzwechsel, WLAN an/aus,
+# Aufwachen), prüft dann, ob die Schüssel antwortet (TCP auf 192.168.100.1:9200,
+# die API der Schüssel), und startet oder stoppt den Sammler. Ohne Starlink
+# schreibt er «gone» in die Statusdatei, das Widget verschwindet, und er
+# prüft nur noch alle zehn Minuten.
+set -uo pipefail
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/starlink"
+DISH="${STARLINK_DISH:-192.168.100.1}"
+PORT=9200
+HERE="$(cd "$(dirname "$0")" && pwd)"
+mkdir -p "$STATE_DIR"
+
+# Nur ein Wächter zur Zeit (Bar auf zwei Bildschirmen, Neustart der Shell).
+exec 8>"$STATE_DIR/watch.lock"
+flock -n 8 || exit 0
+
+PARENT=$(ps -o ppid= -p $$ | tr -d ' ')
+collector_pid=""
+on_starlink=""   # "", 1 oder 0
+
+write_gone() {
+  local tmp="$STATE_DIR/status.json.tmp"
+  printf '{"ts": %d, "ok": false, "gone": true, "error": "Not on Starlink", "outages": [], "history": [], "current_outage": null}\n' \
+    "$(date +%s)" >"$tmp"
+  mv -f "$tmp" "$STATE_DIR/status.json"
+}
+
+probe() {
+  timeout 2 bash -c "exec 3<>/dev/tcp/$DISH/$PORT" 2>/dev/null
+}
+
+# Nach einem Netzwechsel braucht das Netz einen Moment; darum bis zu drei
+# Versuche im Abstand von drei Sekunden.
+probe_patiently() {
+  local i
+  for i in 1 2 3; do
+    probe && return 0
+    sleep 3
+  done
+  return 1
+}
+
+collector_alive() {
+  [[ -n $collector_pid ]] && kill -0 "$collector_pid" 2>/dev/null
+}
+
+start_collector() {
+  collector_alive && return
+  "$HERE/starlink-collector" &
+  collector_pid=$!
+}
+
+stop_collector() {
+  if [[ -n $collector_pid ]]; then
+    kill "$collector_pid" 2>/dev/null
+    wait "$collector_pid" 2>/dev/null
+    collector_pid=""
+  fi
+}
+
+trap stop_collector EXIT
+trap 'exit 0' TERM INT
+
+check() {
+  if probe_patiently; then
+    on_starlink=1
+    start_collector
+  else
+    [[ $on_starlink != 0 ]] && stop_collector && write_gone
+    on_starlink=0
+  fi
+}
+
+parent_gone() {
+  [[ "$(ps -o ppid= -p $$ | tr -d ' ')" != "$PARENT" ]]
+}
+
+exec < <(ip monitor route)
+check
+
+while true; do
+  # Mit Starlink alle 30 s nach dem Sammler sehen, ohne Starlink alle 10 min
+  # neu prüfen; dazwischen blockiert das Lesen und kostet nichts.
+  if [[ $on_starlink == 1 ]]; then wait_s=30; else wait_s=600; fi
+  if read -r -t "$wait_s" _line; then
+    # Ereignisse bündeln: kurz warten, was noch kommt, verwerfen
+    sleep 3
+    while read -r -t 0.2 _line; do :; done
+    parent_gone && exit 0
+    check
+  else
+    parent_gone && exit 0
+    if [[ $on_starlink == 1 ]]; then start_collector; else check; fi
+  fi
+done

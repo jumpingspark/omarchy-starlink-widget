@@ -30,6 +30,7 @@ ist das Widget nicht in der Bar; das Panel folgt dem Aufbau der Batterie- und Ne
 | Das Plugin kann den Sammler selbst starten und seine Python-Abhängigkeiten beim ersten Start selbst besorgen, ohne das Arbeitsrepo starlink-grpc-tools | 15.9.: Symlink und Dienst entfernt, Plugin per Omarchy-Befehl aus GitHub installiert, Sammler hat sich seine Umgebung selbst angelegt (Paket starlink-grpc-core) und fragt die Schüssel ab | belegt |
 | Ein Widget, das sich ausblendet, lässt in der Bar keine Lücke | Gestellter Ausfall der Schüssel am 15.9., Screenshot der Bar: Nachbarn rücken zusammen | belegt |
 | «Nicht über Starlink online» lässt sich daran erkennen, dass die Schüssel nicht antwortet | Im Starlink-Netz antwortet sie, in jedem anderen WLAN nicht; Beleg: Sammler-Fehler beim nächsten echten Netzwechsel | offen, plausibel |
+| Ein Netzwechsel löst ein Routen-Ereignis aus, auf das der Wächter ohne Polling warten kann | 15.9.: `ip monitor route` läuft ohne Rechte; ob ein WLAN-Wechsel ein Ereignis liefert, ist beim nächsten echten Wechsel zu belegen | offen, plausibel |
 
 ## Scheiben
 
@@ -37,7 +38,8 @@ ist das Widget nicht in der Bar; das Panel folgt dem Aufbau der Batterie- und Ne
 |---|---|---|---|
 | 1 | Widget nur da, wenn Starlink. Acceptance Criteria: Antwortet die Schüssel eine Weile nicht, verschwindet das Symbol aus der Bar ohne Lücke; antwortet sie wieder, ist es wieder da. Ein Unterbruch mit erreichbarer Schüssel bleibt ein Unterbruch, kein Verschwinden. | steht | https://claude.ai/artifact/MZrotZeJNHVUQpMdosotXm |
 | 2 | Installierbar und aktualisierbar mit einem Befehl. Acceptance Criteria: `omarchy plugin add` aus dem GitHub-Repo bringt Widget und Sammler auf diesem Rechner zum Laufen, ohne Symlink, ohne Arbeitsrepo starlink-grpc-tools, ohne Handarbeit am Benutzerdienst; `omarchy plugin update` holt eine neue Fassung. | steht | https://claude.ai/artifact/QptB5kfHH2VWbHE3rWwWwi |
-| 3 | Panel im Stil der Omarchy-Panels. Acceptance Criteria: Kopf mit Symbol, Titel, Untertitel in Grossbuchstaben und grosser Kennzahl rechts; Kennzahlen zweispaltig, Beschriftung links, Wert rechts; Abschnittstitel in Grossbuchstaben; Trennlinien wie bei Batterie und Netzwerk. David bestätigt am Screenshot. | steht, Bestätigung offen | https://claude.ai/artifact/YWpgUy3PQcM9K8Yxy4mw39 |
+| 3 | Panel im Stil der Omarchy-Panels. Acceptance Criteria: Kopf mit Symbol, Titel, Untertitel in Grossbuchstaben und grosser Kennzahl rechts; Kennzahlen zweispaltig, Beschriftung links, Wert rechts; Abschnittstitel in Grossbuchstaben; Trennlinien wie bei Batterie und Netzwerk. David bestätigt am Screenshot. | steht, bestätigt | https://claude.ai/artifact/YWpgUy3PQcM9K8Yxy4mw39 |
+| 4 | Sammler nur im Starlink-Netz. Acceptance Criteria: Ausserhalb des Starlink-Netzes läuft kein Sammler und keine Python-Umgebung, nur ein wartender Wächter; das Symbol ist nicht in der Bar, und das Widget liest höchstens jede Minute. Kommt Starlink zurück, startet der Sammler von selbst innert einer halben Minute. | läuft | |
 
 ## Entscheide
 
@@ -59,6 +61,11 @@ Datum, Entscheid, Grund. Nichts löschen; ein gekippter Entscheid bekommt «abge
   Paket in eine eigene Umgebung, nicht mehr aus dem Arbeitsrepo starlink-grpc-tools.
 - 2026-09-15: Der Sammler erkennt das Ende der Shell am Elternprozess, nicht an seiner Eingabe;
   abgelöst wurde der erste Versuch über die Eingabe, weil Quickshell sie sofort schliesst.
+- 2026-09-15 (David): Panel bestätigt. Weiter mit Scheibe 4: Der Sammler läuft nur im Starlink-Netz,
+  weil David Starlink nur in den Ferien nutzt und das Widget sonst fast nichts brauchen soll.
+- 2026-09-15: Erkennung über Routen-Ereignisse des Systems plus Prüfung der Schüssel-API, nicht
+  über den WLAN-Namen: Der Name des Starlink-WLANs ist frei wählbar, die Adresse der Schüssel nicht.
+  Ohne Ereignis wird nur alle zehn Minuten geprüft.
 - 2026-09-15 (David): Panel so nahe wie möglich an den Omarchy-Panels, alles Englisch, weniger
   Beschriftung. Umgesetzt mit denselben Bausteinen wie Batterie und Netzwerk: Statuszeile in
   Grossbuchstaben, grosse Verzögerung rechts, Raster aus Beschriftung und Wert, Trennlinie,
@@ -68,10 +75,7 @@ Datum, Entscheid, Grund. Nichts löschen; ein gekippter Entscheid bekommt «abge
 
 Ideen und Wünsche, die auf den Zielsatz einzahlen, aber nicht jetzt. Ein Satz je Eintrag.
 
-- 2026-09-15 (David): Der Sammler soll nicht dauernd laufen, wenn Starlink lange nicht gebraucht wird.
-  Heute fragt er alle 2 Sekunden, ohne Schüssel alle rund 20 Sekunden vergeblich. Idee: erst beim
-  Netzwechsel wecken oder die Pausen bei Misserfolg wachsen lassen. Passt zu Scheibe 2, wenn das
-  Plugin den Sammler selbst startet.
+- (leer; die Idee «Sammler nicht dauernd laufen lassen» wurde Scheibe 4)
 
 ## Letzter Stand
 
