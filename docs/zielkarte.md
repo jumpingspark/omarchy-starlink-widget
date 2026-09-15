@@ -39,7 +39,7 @@ ist das Widget nicht in der Bar; das Panel folgt dem Aufbau der Batterie- und Ne
 | 1 | Widget nur da, wenn Starlink. Acceptance Criteria: Antwortet die Schüssel eine Weile nicht, verschwindet das Symbol aus der Bar ohne Lücke; antwortet sie wieder, ist es wieder da. Ein Unterbruch mit erreichbarer Schüssel bleibt ein Unterbruch, kein Verschwinden. | steht | https://claude.ai/artifact/MZrotZeJNHVUQpMdosotXm |
 | 2 | Installierbar und aktualisierbar mit einem Befehl. Acceptance Criteria: `omarchy plugin add` aus dem GitHub-Repo bringt Widget und Sammler auf diesem Rechner zum Laufen, ohne Symlink, ohne Arbeitsrepo starlink-grpc-tools, ohne Handarbeit am Benutzerdienst; `omarchy plugin update` holt eine neue Fassung. | steht | https://claude.ai/artifact/QptB5kfHH2VWbHE3rWwWwi |
 | 3 | Panel im Stil der Omarchy-Panels. Acceptance Criteria: Kopf mit Symbol, Titel, Untertitel in Grossbuchstaben und grosser Kennzahl rechts; Kennzahlen zweispaltig, Beschriftung links, Wert rechts; Abschnittstitel in Grossbuchstaben; Trennlinien wie bei Batterie und Netzwerk. David bestätigt am Screenshot. | steht, bestätigt | https://claude.ai/artifact/YWpgUy3PQcM9K8Yxy4mw39 |
-| 4 | Sammler nur im Starlink-Netz. Acceptance Criteria: Ausserhalb des Starlink-Netzes läuft kein Sammler und keine Python-Umgebung, nur ein wartender Wächter; das Symbol ist nicht in der Bar, und das Widget liest höchstens jede Minute. Kommt Starlink zurück, startet der Sammler von selbst innert einer halben Minute. | läuft | |
+| 4 | Sammler nur im Starlink-Netz. Acceptance Criteria: Ausserhalb des Starlink-Netzes läuft kein Sammler und keine Python-Umgebung, nur ein wartender Wächter; das Symbol ist nicht in der Bar, und das Widget liest höchstens jede Minute. Kommt Starlink zurück, startet der Sammler von selbst innert einer halben Minute. | steht | https://claude.ai/artifact/TSndL6WAZVuikrgPWxG2CN |
 
 ## Entscheide
 
@@ -66,6 +66,9 @@ Datum, Entscheid, Grund. Nichts löschen; ein gekippter Entscheid bekommt «abge
 - 2026-09-15: Erkennung über Routen-Ereignisse des Systems plus Prüfung der Schüssel-API, nicht
   über den WLAN-Namen: Der Name des Starlink-WLANs ist frei wählbar, die Adresse der Schüssel nicht.
   Ohne Ereignis wird nur alle zehn Minuten geprüft.
+- 2026-09-15: Der Wächter vererbt seine Sperre nicht an Lauscher und Sammler und beendet den
+  Lauscher mit sich; abgelöst wurde die erste Fassung, bei der ein verwaister Lauscher die Sperre
+  hielt und kein Wächter mehr hochkam.
 - 2026-09-15 (David): Panel so nahe wie möglich an den Omarchy-Panels, alles Englisch, weniger
   Beschriftung. Umgesetzt mit denselben Bausteinen wie Batterie und Netzwerk: Statuszeile in
   Grossbuchstaben, grosse Verzögerung rechts, Raster aus Beschriftung und Wert, Trennlinie,
@@ -79,10 +82,9 @@ Ideen und Wünsche, die auf den Zielsatz einzahlen, aber nicht jetzt. Ein Satz j
 
 ## Letzter Stand
 
-15. September 2026, 13:05: Alle drei Scheiben stehen, der Zielsatz ist wahr. Das Plugin kommt mit
-einem Befehl aus GitHub, zeigt sich nur im Starlink-Netz und sieht aus wie Batterie und Netzwerk.
-David muss das Panel am Screenshot bestätigen und den Abschluss entscheiden: fertig, weiter oder
-parken.
+15. September 2026, 13:35: Vier Scheiben stehen. Ohne Starlink läuft nur ein wartender Wächter,
+das Symbol ist weg, geprüft gestellt; der echte WLAN-Wechsel ist die letzte offene Annahme. David
+entscheidet den Abschluss: fertig, weiter oder parken.
 
 ## Abschluss
 
