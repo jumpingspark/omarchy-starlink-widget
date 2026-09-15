@@ -26,14 +26,14 @@ write_status() {
 }
 
 if ! "$PY" -c 'import starlink_grpc' >/dev/null 2>&1; then
-  write_status "Python-Umgebung wird eingerichtet"
+  write_status "Setting up Python environment"
   {
     echo "== $(date -Is) richte $VENV ein"
     rm -rf "$VENV"
     python3 -m venv "$VENV"
     "$PY" -m pip install --quiet --disable-pip-version-check starlink-grpc-core
   } >>"$STATE_DIR/setup.log" 2>&1 || {
-    write_status "Einrichtung fehlgeschlagen, siehe $STATE_DIR/setup.log"
+    write_status "Setup failed, see $STATE_DIR/setup.log"
     exit 1
   }
 fi

@@ -1,10 +1,13 @@
 import QtQuick
+import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// Das Klick-Panel: Zustand, Kennzahlen und die Unterbrüche seit Rechnerstart.
+// Das Klick-Panel, gebaut wie die Batterie- und Netzwerk-Panels von Omarchy:
+// Kopf mit Symbol, Titel, Statuszeile und grosser Kennzahl, Verlauf als Linie,
+// Kennzahlen im Raster, Unterbrüche als Liste.
 // Die Daten schreibt der Sammler (bin/starlink-collector, vom Bar-Widget
 // gestartet) nach ~/.local/state/starlink/status.json; das Panel liest nur.
 Panel {
@@ -44,10 +47,11 @@ Panel {
   readonly property real dropPct: reachable && data.drop !== null && data.drop !== undefined ? Number(data.drop) * 100 : -1
   readonly property var outages: haveFile && data.outages ? data.outages : []
   readonly property var currentOutage: haveFile && data.current_outage ? data.current_outage : null
+  readonly property int maxRows: 6
   readonly property var recentOutages: {
     var list = outages.slice()
     list.reverse()
-    return list.slice(0, 8)
+    return list.slice(0, maxRows)
   }
 
   // Schwach: über die letzte Minute im Mittel mehr als 5 % Paketverlust oder
@@ -78,114 +82,82 @@ Panel {
   }
   readonly property bool weak: connected && weakness.weak
 
-  // Status in Worten, wie beim Akku-Panel: kurze Sprüche aus dem Weltall,
-  // je Zustand eine Liste, alle 2.8 s der nächste, solange das Panel offen ist.
+  // Statuszeile im Kopf, wie beim Akku-Panel: kurze Sprüche aus dem Weltall,
+  // alle 2.8 s der nächste, solange das Panel offen ist.
   readonly property var phrasesGood: ["Orbiting smoothly", "Riding the beam", "Surfing low orbit", "Beaming down bits", "Talking to the stars", "Catching satellites", "Pinging the sky", "Locked on orbit", "Cruising at 550 km"]
   readonly property var phrasesLoss: ["Dropping packets", "Leaking bits", "Losing the beam", "Static in orbit", "Shedding packets"]
   readonly property var phrasesLatency: ["Taking the scenic orbit", "Long way round", "Lagging behind", "Slow beam tonight", "Signal detour"]
-  readonly property var phrasesNoSat: ["Waiting for a satellite", "Sky's empty", "Between satellites", "No bird overhead"]
-  readonly property var phrasesObstructed: ["Blocked view", "Something in the way", "Sky's obstructed"]
-  readonly property var phrasesNoDownlink: ["Sky went quiet", "No beam coming down"]
-  readonly property var phrasesNoPings: ["Satellite fine, ground not", "Ground side down"]
-  readonly property var phrasesThermal: ["Cooling off", "Too hot to beam"]
-  readonly property var phrasesSearching: ["Scanning the heavens", "Hunting satellites"]
-  readonly property var phrasesStowed: ["Dish napping", "Folded up"]
-  readonly property var phrasesLost: ["Lost in space", "Houston, we have a problem"]
-  readonly property var phrasesNoDish: ["Dish off the grid", "No dish in sight"]
-  readonly property var phrasesNoCollector: ["Ground control silent", "Houston, come in"]
 
   readonly property var activePhrases: {
-    if (!haveFile || stale) return phrasesNoCollector
-    if (!reachable) return phrasesNoDish
-    if (down) {
-      switch (state) {
-        case "NO_SCHEDULE":
-        case "NO_SATS": return phrasesNoSat
-        case "OBSTRUCTED": return phrasesObstructed
-        case "NO_DOWNLINK": return phrasesNoDownlink
-        case "NO_PINGS": return phrasesNoPings
-        case "THERMAL_SHUTDOWN": return phrasesThermal
-        case "BOOTING":
-        case "SEARCHING": return phrasesSearching
-        case "STOWED": return phrasesStowed
-        default: return phrasesLost
-      }
-    }
+    if (!connected) return []
     if (weak) return weakness.why === "loss" ? phrasesLoss : phrasesLatency
     return phrasesGood
   }
+  readonly property bool rotatingPhrases: activePhrases.length > 0
   property int phraseIndex: 0
-  readonly property string phrase: activePhrases[phraseIndex % activePhrases.length]
 
-  Timer {
-    interval: 2800
-    running: root.opened
-    repeat: true
-    onTriggered: root.phraseIndex = (root.phraseIndex + 1) % root.activePhrases.length
-  }
-
-  // Zustand in einem Wort, unter dem Spruch
-  readonly property string stateLine: {
-    if (!haveFile || stale) return "Sammler meldet sich nicht"
-    if (setup) return String(data.error || "Sammler richtet sich ein")
-    if (!reachable) return "Schüssel nicht erreichbar"
+  // Die eine Zeile unter dem Titel: Spruch, oder der Grund, warum keiner passt.
+  readonly property string heroMeta: {
+    if (!haveFile || stale) return "Collector silent"
+    if (setup) return String(data.error || "Setting up")
+    if (!reachable) return "Dish unreachable"
     if (down) return reason(state)
-    if (weak) return weakness.why === "loss" ? "Schwach: " + weakness.value.toFixed(0) + " % Verlust über eine Minute" : "Schwach: " + weakness.value.toFixed(0) + " ms über eine Minute"
-    return "Verbunden"
+    return activePhrases[phraseIndex % activePhrases.length]
   }
 
   // Symbol in der Bar (Nerd Font, Satellitenschüssel U+EF60, fa-satellite_dish, von David gewählt);
-  // der Tooltip trägt die Zahlen.
-  readonly property string glyph: "\uEF60"
-  readonly property string tooltip: {
-    if (!haveFile || stale) return "Starlink: Sammler meldet sich nicht"
-    if (setup) return "Starlink: " + String(data.error || "Sammler richtet sich ein")
-    if (!reachable) return "Starlink: Schüssel nicht erreichbar"
-    if (down) return "Starlink: " + reason(state)
-    if (latencyMs >= 0) return "Starlink " + Math.round(latencyMs) + " ms · " + phrase
-    return "Starlink verbunden"
-  }
+  // der Tooltip trägt die Zahl.
+  readonly property string glyph: ""
+  readonly property string tooltip: latencyMs >= 0 ? "Starlink " + Math.round(latencyMs) + " ms · " + heroMeta : "Starlink · " + heroMeta
 
   // Die Schüssel nennt den Grund als Code. Hier die Übersetzung in Worte.
   function reason(code) {
     switch (String(code)) {
-      case "CONNECTED": return "Verbunden"
-      case "NO_SCHEDULE": return "Kein Satellit erreichbar"
-      case "NO_SATS": return "Kein Satellit in Sicht"
-      case "OBSTRUCTED": return "Hindernis im Blickfeld"
-      case "NO_DOWNLINK": return "Kein Empfang vom Satelliten"
-      case "NO_PINGS": return "Keine Antwort vom Netz"
-      case "BOOTING": return "Schüssel startet"
-      case "SEARCHING": return "Schüssel sucht Satelliten"
-      case "STOWED": return "Schüssel eingeklappt"
-      case "THERMAL_SHUTDOWN": return "Überhitzt, abgeschaltet"
-      case "SLEEPING": return "Schüssel schläft"
-      case "MOVING_WHILE_NOT_ALLOWED": return "In Bewegung, nicht erlaubt"
-      case "UNKNOWN": return "Unbekannter Grund"
+      case "CONNECTED": return "Connected"
+      case "NO_SCHEDULE": return "No schedule"
+      case "NO_SATS": return "No satellites"
+      case "OBSTRUCTED": return "Obstructed"
+      case "NO_DOWNLINK": return "No downlink"
+      case "NO_PINGS": return "No pings"
+      case "BOOTING": return "Booting"
+      case "SEARCHING": return "Searching"
+      case "STOWED": return "Stowed"
+      case "THERMAL_SHUTDOWN": return "Thermal shutdown"
+      case "SLEEPING": return "Sleeping"
+      case "MOVING_WHILE_NOT_ALLOWED": return "Moving"
+      case "UNKNOWN": return "Unknown"
       default: return String(code)
     }
   }
 
-  function fmtMbit(bps) {
-    var v = Number(bps)
-    if (!isFinite(v) || v < 0) return "–"
-    return (v / 1e6).toFixed(v >= 10e6 ? 0 : (v >= 1e6 ? 1 : 2))
+  // Durchsatz wie im Netzwerk-Panel: KB/s oder MB/s, aus Bit pro Sekunde.
+  function fmtRate(bps) {
+    var v = Number(bps) / 8
+    if (!isFinite(v) || v < 0) return "--"
+    if (v >= 1e6) return (v / 1e6).toFixed(1) + " MB/s"
+    return (v / 1e3).toFixed(1) + " KB/s"
+  }
+
+  function fmtPct(p) {
+    var v = Number(p)
+    if (!isFinite(v) || v < 0) return "--"
+    return (v >= 10 ? Math.round(v) : v.toFixed(1)) + "%"
   }
 
   function fmtUptime(s) {
     var v = Number(s)
-    if (!isFinite(v) || v < 0) return "–"
+    if (!isFinite(v) || v < 0) return "--"
     var h = Math.floor(v / 3600), m = Math.floor((v % 3600) / 60)
-    if (h >= 48) return Math.floor(h / 24) + " d " + (h % 24) + " h"
-    return h + " h " + m + " min"
+    if (h >= 48) return Math.floor(h / 24) + "d " + (h % 24) + "h"
+    return h + "h " + m + "m"
   }
 
   function fmtDuration(s) {
     var v = Math.round(Number(s))
-    if (!isFinite(v) || v < 0) return "–"
-    if (v < 60) return v + " s"
-    if (v < 3600) return Math.floor(v / 60) + " min " + (v % 60) + " s"
-    return Math.floor(v / 3600) + " h " + Math.floor((v % 3600) / 60) + " min"
+    if (!isFinite(v) || v < 0) return "--"
+    if (v < 60) return v + "s"
+    if (v < 3600) return Math.floor(v / 60) + "m " + (v % 60) + "s"
+    return Math.floor(v / 3600) + "h " + Math.floor((v % 3600) / 60) + "m"
   }
 
   // Uhrzeit; liegt der Zeitpunkt nicht am heutigen Tag, mit Wochentag davor.
@@ -201,7 +173,7 @@ Panel {
     if (line === "") return
     try {
       root.data = JSON.parse(line)
-      root.lastError = root.data.ok ? "" : String(root.data.error || "Schüssel nicht erreichbar")
+      root.lastError = root.data.ok ? "" : String(root.data.error || "")
     } catch (e) {
       // halb geschriebene Datei: alten Stand behalten
     }
@@ -242,7 +214,7 @@ Panel {
     printErrors: false
     onFileChanged: reload()
     onLoaded: root.parse(text())
-    onLoadFailed: { root.data = null; root.lastError = "Sammler läuft nicht" }
+    onLoadFailed: { root.data = null; root.lastError = "Collector not running" }
   }
 
   // Der Sammler ersetzt die Datei atomar; der Dateiwächter verliert dabei
@@ -255,6 +227,33 @@ Panel {
     onTriggered: { root.nowMs = Date.now(); stateFile.reload() }
   }
 
+  // Spruchwechsel mit Ausblenden, wie beim Akku-Panel.
+  Timer {
+    interval: 2800
+    running: root.opened && root.rotatingPhrases
+    repeat: true
+    onTriggered: phraseSwap.restart()
+  }
+
+  SequentialAnimation {
+    id: phraseSwap
+    PropertyAnimation { target: heroStatus; property: "opacity"; to: 0.0; duration: 180; easing.type: Easing.OutQuad }
+    ScriptAction {
+      script: {
+        var n = root.activePhrases.length
+        if (n > 0) root.phraseIndex = (root.phraseIndex + 1) % n
+      }
+    }
+    PropertyAnimation { target: heroStatus; property: "opacity"; to: 1.0; duration: 260; easing.type: Easing.InQuad }
+  }
+
+  Connections {
+    target: root
+    function onRotatingPhrasesChanged() {
+      if (!root.rotatingPhrases) { phraseSwap.stop(); heroStatus.opacity = 1.0 }
+    }
+  }
+
   // ---- Das Panel selbst
   KeyboardPanel {
     id: panel
@@ -263,7 +262,7 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keyCatcher
-    contentWidth: panel.fittedContentWidth(Style.space(360))
+    contentWidth: panel.fittedContentWidth(Style.space(380))
     contentHeight: panel.fittedContentHeight(column.implicitHeight)
 
     PanelKeyCatcher {
@@ -275,111 +274,86 @@ Panel {
 
       Column {
         id: column
-        width: parent.width
-        spacing: Style.space(12)
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        spacing: Style.space(14)
 
         readonly property color fg: root.bar ? root.bar.foreground : Color.foreground
-        readonly property color dim: Qt.darker(fg, 1.5)
-        readonly property color accent: Color.accent
+        readonly property color dim: Qt.darker(fg, 1.4)
         readonly property color urgent: root.bar ? root.bar.urgent : Color.urgent
         readonly property string family: root.bar ? root.bar.fontFamily : Style.font.family
 
-        // Kopfzeile
+        // ---------- Kopf: Symbol · Titel/Status · Verzögerung ----------
         Item {
           width: parent.width
-          height: title.implicitHeight
+          implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, heroValue.implicitHeight)
+
           Text {
-            id: title
-            text: "Starlink"
+            id: heroIcon
+            textFormat: Text.PlainText
+            text: root.glyph
             color: column.fg
             font.family: column.family
-            font.pixelSize: Style.font.title
-            font.bold: true
-          }
-          Text {
-            anchors.right: parent.right
-            anchors.baseline: title.baseline
-            text: root.reachable ? "läuft seit " + root.fmtUptime(root.data.uptime_s) : ""
-            color: column.dim
-            font.family: column.family
-            font.pixelSize: Style.font.bodySmall
-          }
-        }
-
-        // Zustand: Punkt, Spruch, Zustand in Worten
-        Row {
-          width: parent.width
-          spacing: Style.space(10)
-          Rectangle {
-            width: Style.space(10); height: width; radius: width / 2
+            font.pixelSize: Style.font.display
+            opacity: root.reachable ? 1.0 : 0.5
+            anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            color: !root.reachable ? column.dim : (root.down ? column.urgent : (root.weak ? column.accent : column.accent))
-            opacity: root.weak ? 0.55 : 1
           }
+
           Column {
-            width: parent.width - Style.space(20)
+            id: heroLabels
+            anchors.left: heroIcon.right
+            anchors.leftMargin: Style.space(14)
+            anchors.right: heroValue.left
+            anchors.rightMargin: Style.space(10)
+            anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(2)
+
             Text {
-              width: parent.width
-              wrapMode: Text.WordWrap
-              text: root.phrase
+              textFormat: Text.PlainText
+              text: "Starlink"
               color: column.fg
               font.family: column.family
-              font.pixelSize: Style.font.subtitle
+              font.pixelSize: Style.font.title
               font.bold: true
-            }
-            Text {
+              elide: Text.ElideRight
               width: parent.width
-              wrapMode: Text.WordWrap
-              text: root.stateLine
-              color: root.down || root.weak ? column.urgent : column.dim
+            }
+
+            Text {
+              id: heroStatus
+              textFormat: Text.PlainText
+              text: root.heroMeta.toUpperCase()
+              color: root.down ? column.urgent : column.dim
               font.family: column.family
-              font.pixelSize: Style.font.bodySmall
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              font.letterSpacing: 1.2
+              elide: Text.ElideRight
+              width: parent.width
             }
           }
-        }
 
-        // Laufender Unterbruch
-        Text {
-          visible: root.reachable && root.currentOutage !== null
-          leftPadding: Style.space(18)
-          text: root.currentOutage ? "seit " + root.fmtClock(root.currentOutage.start) + ", " + root.fmtDuration(root.nowMs / 1000 - Number(root.currentOutage.start)) : ""
-          color: column.urgent
-          font.family: column.family
-          font.pixelSize: Style.font.body
-        }
-
-        // Kennzahlen; Flow bricht um, wenn die Zeile zu lang wird
-        Flow {
-          visible: root.reachable
-          width: parent.width
-          spacing: Style.space(18)
-          leftPadding: Style.space(18)
           Text {
-            text: root.latencyMs >= 0 ? Math.round(root.latencyMs) + " ms" : "– ms"
-            color: column.fg; font.family: column.family; font.pixelSize: Style.font.body
-          }
-          Text {
-            text: root.dropPct >= 0 ? root.dropPct.toFixed(1) + " % Verlust" : "– % Verlust"
-            color: column.fg; font.family: column.family; font.pixelSize: Style.font.body
-          }
-          Text {
-            text: root.reachable ? root.fmtMbit(root.data.down_bps) + " / " + root.fmtMbit(root.data.up_bps) + " Mbit/s" : ""
-            color: column.fg; font.family: column.family; font.pixelSize: Style.font.body
+            id: heroValue
+            textFormat: Text.PlainText
+            text: root.latencyMs >= 0 ? Math.round(root.latencyMs) + " ms" : "—"
+            color: root.down || root.weak ? column.urgent : column.fg
+            font.family: column.family
+            font.pixelSize: Style.font.displayLarge
+            font.bold: true
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            Behavior on color { ColorAnimation { duration: 200 } }
           }
         }
 
-        // Verlauf der Verzögerung, letzte 15 Minuten
-        PanelSectionHeader {
-          text: "VERZÖGERUNG, 15 MINUTEN"
-          foreground: column.fg
-          fontFamily: column.family
-        }
-
+        // ---------- Verlauf der Verzögerung, 15 Minuten, ohne Beschriftung ----------
         Canvas {
           id: chart
           width: parent.width
-          height: Style.space(84)
+          height: Style.space(40)
           visible: root.haveFile
 
           readonly property int spanS: 15 * 60
@@ -396,8 +370,6 @@ Panel {
             var ctx = getContext("2d")
             ctx.reset()
             var w = width, h = height
-            var padL = Style.space(28), padR = Style.space(4), padT = Style.space(6), padB = Style.space(18)
-            var plotW = w - padL - padR, plotH = h - padT - padB
             var now = root.nowMs / 1000
             var t0 = now - spanS
             var pts = history
@@ -412,51 +384,31 @@ Panel {
             var yMax = steps[steps.length - 1]
             for (var k = 0; k < steps.length; k++) { if (maxV <= steps[k]) { yMax = steps[k]; break } }
 
-            function x(t) { return padL + (t - t0) / spanS * plotW }
-            function y(v) { return padT + plotH - Math.min(v, yMax) / yMax * plotH }
+            function x(t) { return (t - t0) / spanS * w }
+            function y(v) { return h - 1 - Math.min(v, yMax) / yMax * (h - 2) }
 
-            var fg = String(column.fg), dim = String(column.dim)
-            ctx.font = Style.font.caption + "px " + column.family
-
-            // Raster und Achsenbeschriftung
-            ctx.strokeStyle = dim
-            ctx.globalAlpha = 0.25
-            ctx.lineWidth = 1
-            var levels = [0, 0.5, 1]
-            for (var l = 0; l < levels.length; l++) {
-              var yy = Math.round(y(yMax * levels[l])) + 0.5
-              ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(w - padR, yy); ctx.stroke()
-            }
-            ctx.globalAlpha = 1
-            ctx.fillStyle = dim
-            ctx.textAlign = "right"
-            ctx.textBaseline = "middle"
-            ctx.fillText(String(yMax), padL - Style.space(4), y(yMax))
-            ctx.fillText(String(yMax / 2), padL - Style.space(4), y(yMax / 2))
-            ctx.textBaseline = "top"
-            ctx.textAlign = "left";   ctx.fillText("-15 min", padL, padT + plotH + Style.space(3))
-            ctx.textAlign = "center"; ctx.fillText("-10", x(now - 600), padT + plotH + Style.space(3))
-            ctx.fillText("-5", x(now - 300), padT + plotH + Style.space(3))
-            ctx.textAlign = "right";  ctx.fillText("jetzt", w - padR, padT + plotH + Style.space(3))
+            var fg = column.fg
+            // Grundlinie, so leise wie eine Trennlinie
+            ctx.fillStyle = Qt.rgba(fg.r, fg.g, fg.b, 0.12)
+            ctx.fillRect(0, h - 1, w, 1)
 
             // Unterbrüche als Band: Messpunkte ohne Verzögerung oder mit vollem Verlust
-            ctx.fillStyle = String(column.urgent)
-            ctx.globalAlpha = 0.18
+            var urgent = column.urgent
+            ctx.fillStyle = Qt.rgba(urgent.r, urgent.g, urgent.b, 0.35)
             var gapStart = -1
             for (var g = 0; g <= pts.length; g++) {
               var isGap = g < pts.length && (pts[g][1] === null || pts[g][1] === undefined || Number(pts[g][2]) >= 1)
               if (isGap && gapStart < 0) gapStart = pts[g][0]
               if (!isGap && gapStart >= 0) {
                 var gEnd = g < pts.length ? pts[g][0] : now
-                var gx = Math.max(padL, x(gapStart))
-                ctx.fillRect(gx, padT, Math.max(2, x(gEnd) - gx), plotH)
+                var gx = Math.max(0, x(gapStart))
+                ctx.fillRect(gx, 0, Math.max(2, x(gEnd) - gx), h)
                 gapStart = -1
               }
             }
-            ctx.globalAlpha = 1
 
             // Die Kurve; Lücken bleiben Lücken
-            ctx.strokeStyle = String(column.accent)
+            ctx.strokeStyle = String(fg)
             ctx.lineWidth = 1.5
             ctx.lineJoin = "round"
             var drawing = false
@@ -470,112 +422,162 @@ Panel {
               else ctx.lineTo(x(t), y(val))
             }
             ctx.stroke()
-
-            // Hinweis, wenn noch wenig Daten da sind
-            if (pts.length > 0 && pts[0][0] > t0 + 60) {
-              ctx.fillStyle = dim
-              ctx.textAlign = "left"; ctx.textBaseline = "top"
-              ctx.fillText("Sammler läuft seit " + root.fmtClock(pts[0][0]), padL + Style.space(4), padT)
-            }
           }
         }
 
-        // Hinweise der Schüssel (Alerts), falls welche anliegen
+        // ---------- Kennzahlen, vierspaltig wie im Netzwerk-Panel ----------
+        GridLayout {
+          visible: root.reachable
+          width: parent.width
+          columns: 4
+          columnSpacing: Style.space(20)
+          rowSpacing: Style.spacing.labelGap
+
+          InfoLabel { text: "Ping" }
+          DetailValue { text: root.latencyMs >= 0 ? Math.round(root.latencyMs) + " ms" : "--" }
+          InfoLabel { text: "Packet Loss" }
+          DetailValue {
+            text: root.fmtPct(root.dropPct)
+            color: root.dropPct > 0 ? column.urgent : column.fg
+          }
+
+          InfoLabel { text: "Receiving" }
+          DetailValue { text: root.reachable ? root.fmtRate(root.data.down_bps) : "--" }
+          InfoLabel { text: "Sending" }
+          DetailValue { text: root.reachable ? root.fmtRate(root.data.up_bps) : "--" }
+
+          InfoLabel { text: "Uptime" }
+          DetailValue { text: root.reachable ? root.fmtUptime(root.data.uptime_s) : "--" }
+          InfoLabel { text: "Obstructed" }
+          DetailValue {
+            text: root.reachable ? root.fmtPct(Number(root.data.fraction_obstructed) * 100) : "--"
+            color: root.reachable && root.data.obstructed ? column.urgent : column.fg
+          }
+        }
+
+        // Hinweise der Schüssel (Alerts), nur wenn welche anliegen
         Text {
           visible: root.reachable && root.data.alerts && root.data.alerts.length > 0
           width: parent.width
           wrapMode: Text.WordWrap
-          text: root.reachable && root.data.alerts ? "Hinweis: " + root.data.alerts.join(", ") : ""
+          textFormat: Text.PlainText
+          text: root.reachable && root.data.alerts ? root.data.alerts.join(", ") : ""
           color: column.urgent
           font.family: column.family
           font.pixelSize: Style.font.bodySmall
         }
 
-        // Unterbrüche seit Rechnerstart
-        PanelSectionHeader {
-          text: "UNTERBRÜCHE SEIT START"
-          foreground: column.fg
-          fontFamily: column.family
-        }
-
+        // Fehler des Sammlers, nur wenn die Schüssel nicht antwortet
         Text {
-          visible: root.recentOutages.length === 0
-          text: root.haveFile ? "keine seit " + root.fmtClock(root.data.boot) : "–"
-          color: column.dim
-          font.family: column.family
-          font.pixelSize: Style.font.body
-        }
-
-        Column {
-          width: parent.width
-          spacing: 0
-          Repeater {
-            model: root.recentOutages
-            delegate: Item {
-              required property var modelData
-              width: column.width
-              height: rowText.implicitHeight + Style.space(10)
-              Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: column.dim; opacity: 0.25 }
-              Text {
-                id: rowText
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.fmtClock(modelData.start)
-                color: column.dim
-                font.family: column.family
-                font.pixelSize: Style.font.body
-              }
-              Text {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: rowText.right
-                anchors.leftMargin: Style.space(12)
-                anchors.right: durText.left
-                anchors.rightMargin: Style.space(8)
-                elide: Text.ElideRight
-                text: root.reason(modelData.cause)
-                color: column.fg
-                font.family: column.family
-                font.pixelSize: Style.font.body
-              }
-              Text {
-                id: durText
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.right: parent.right
-                text: root.fmtDuration(modelData.duration_s)
-                color: column.dim
-                font.family: column.family
-                font.pixelSize: Style.font.body
-              }
-            }
-          }
-        }
-
-        Text {
-          visible: root.outages.length > root.recentOutages.length
-          text: "und " + (root.outages.length - root.recentOutages.length) + " weitere"
-          color: column.dim
-          font.family: column.family
-          font.pixelSize: Style.font.bodySmall
-        }
-
-        // Fehler
-        Text {
-          visible: root.lastError !== "" && !root.reachable
+          visible: root.lastError !== "" && !root.reachable && !root.setup
           width: parent.width
           wrapMode: Text.WordWrap
+          textFormat: Text.PlainText
           text: root.lastError
           color: column.dim
           font.family: column.family
           font.pixelSize: Style.font.bodySmall
         }
 
-        // Fusszeile
-        Text {
-          text: root.haveFile ? "Stand " + Qt.formatTime(new Date(Number(root.data.ts) * 1000), "HH:mm:ss") + " · Sammler fragt alle " + (root.data.interval_s || 2) + " s" : "warte auf den Sammler"
-          color: column.dim
-          font.family: column.family
-          font.pixelSize: Style.font.caption
+        // ---------- Unterbrüche seit Rechnerstart ----------
+        PanelSeparator { foreground: column.fg }
+
+        Column {
+          width: parent.width
+          spacing: Style.space(6)
+
+          PanelSectionHeader {
+            text: "OUTAGES"
+            foreground: column.fg
+            fontFamily: column.family
+          }
+
+          InfoLabel {
+            visible: root.currentOutage === null && root.recentOutages.length === 0
+            text: root.haveFile && root.data.boot ? "None since " + root.fmtClock(root.data.boot) : "--"
+          }
+
+          OutageRow {
+            visible: root.currentOutage !== null
+            start: root.currentOutage ? Number(root.currentOutage.start) : 0
+            cause: root.currentOutage ? String(root.currentOutage.cause) : ""
+            duration: root.currentOutage ? root.nowMs / 1000 - Number(root.currentOutage.start) : 0
+            running: true
+          }
+
+          Repeater {
+            model: root.recentOutages
+            OutageRow {
+              required property var modelData
+              start: Number(modelData.start)
+              cause: String(modelData.cause)
+              duration: Number(modelData.duration_s)
+            }
+          }
+
+          InfoLabel {
+            visible: root.outages.length > root.recentOutages.length
+            text: "+" + (root.outages.length - root.recentOutages.length) + " more"
+          }
         }
       }
+    }
+  }
+
+  component InfoLabel: Text {
+    textFormat: Text.PlainText
+    color: column.fg
+    opacity: 0.6
+    font.family: column.family
+    font.pixelSize: Style.font.bodySmall
+  }
+
+  component InfoValue: Text {
+    textFormat: Text.PlainText
+    color: column.fg
+    font.family: column.family
+    font.pixelSize: Style.font.bodySmall
+  }
+
+  // Wert im Raster, rechtsbündig in seiner Spalte wie im Netzwerk-Panel.
+  component DetailValue: InfoValue {
+    Layout.fillWidth: true
+    horizontalAlignment: Text.AlignRight
+  }
+
+  // Eine Zeile der Unterbruchsliste: Uhrzeit, Grund, Dauer; laufend in Alarmfarbe.
+  component OutageRow: Item {
+    property real start: 0
+    property string cause: ""
+    property real duration: 0
+    property bool running: false
+
+    width: parent ? parent.width : implicitWidth
+    implicitHeight: rowTime.implicitHeight + Style.spacing.labelGap
+
+    InfoLabel {
+      id: rowTime
+      anchors.left: parent.left
+      anchors.verticalCenter: parent.verticalCenter
+      text: root.fmtClock(start)
+    }
+    InfoValue {
+      anchors.left: rowTime.right
+      anchors.leftMargin: Style.space(12)
+      anchors.right: rowDuration.left
+      anchors.rightMargin: Style.space(8)
+      anchors.verticalCenter: parent.verticalCenter
+      elide: Text.ElideRight
+      text: root.reason(cause)
+      color: running ? column.urgent : column.fg
+    }
+    InfoValue {
+      id: rowDuration
+      anchors.right: parent.right
+      anchors.verticalCenter: parent.verticalCenter
+      text: root.fmtDuration(duration)
+      color: running ? column.urgent : column.fg
+      opacity: running ? 1 : 0.6
     }
   }
 }
