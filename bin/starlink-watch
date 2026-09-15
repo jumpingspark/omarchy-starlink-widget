@@ -84,8 +84,10 @@ parent_gone() {
   [[ "$(ps -o ppid= -p $$ | tr -d ' ')" != "$PARENT" ]]
 }
 
-# Der Lauscher erbt die Sperre nicht (8>&-) und wird mit uns beendet.
-exec < <(ip monitor route 8>&-)
+# Der Lauscher erbt die Sperre nicht (8>&-). Die Shell beendet uns beim
+# Neuladen hart, ohne Aufräumen; darum wacht der Lauscher selbst über uns
+# und geht spätestens 15 s nach uns.
+exec < <({ ip monitor route & mp=$!; while kill -0 $$ 2>/dev/null; do sleep 15; done; kill "$mp" 2>/dev/null; } 8>&-)
 monitor_pid=$!
 check
 
