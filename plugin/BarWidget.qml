@@ -41,7 +41,10 @@ BarWidget {
     if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
   }
 
-  implicitWidth: button.implicitWidth
+  // Nicht über Starlink online: kein Symbol, keine Breite, keine Lücke in der Bar.
+  readonly property bool gone: panelLoader.item ? panelLoader.item.gone === true : false
+  visible: !gone
+  implicitWidth: gone ? 0 : button.implicitWidth
   implicitHeight: button.implicitHeight
 
   onBarChanged: injectPanel()

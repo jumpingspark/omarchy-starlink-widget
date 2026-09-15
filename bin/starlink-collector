@@ -61,6 +61,7 @@ boot = boot_time()
 outages = load_outages(boot)
 history = []            # [ts, latenz_ms, verlust_anteil]
 current = None          # laufender Unterbruch {start, cause}
+last_ok = None          # Zeitpunkt der letzten Antwort der Schüssel; None: noch nie
 ctx = None
 
 while True:
@@ -81,6 +82,7 @@ while True:
         ctx = None
 
     if status is not None:
+        last_ok = ts
         state = str(status.get("state", ""))
         connected = state == "CONNECTED"
         latency = status.get("pop_ping_latency_ms")
@@ -110,6 +112,7 @@ while True:
         "ts": ts,
         "boot": boot,
         "ok": status is not None,
+        "last_ok": last_ok,
         "error": error,
         "interval_s": INTERVAL,
         "current_outage": current,

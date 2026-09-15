@@ -24,11 +24,18 @@ Panel {
   property double nowMs: Date.now()
 
   readonly property string statePath: Quickshell.env("HOME") + "/.local/state/starlink/status.json"
-  readonly property int staleAfterS: 30
+  readonly property int staleAfterS: 45
 
   readonly property bool haveFile: data !== null
   readonly property bool stale: haveFile && (nowMs / 1000 - Number(data.ts || 0)) > staleAfterS
   readonly property bool reachable: haveFile && !stale && data.ok === true
+  // Weg: die Schüssel antwortet seit einer Weile nicht, also sind wir nicht über
+  // Starlink online (fremdes WLAN, Kabel). Dann verschwindet das Widget aus der Bar.
+  // Ein Sammler, der sich nicht meldet, ist dagegen ein Fehler und bleibt sichtbar.
+  readonly property int goneAfterS: 30
+  readonly property bool gone: haveFile && !stale && data.ok !== true
+    && (data.last_ok === null || data.last_ok === undefined || (Number(data.ts) - Number(data.last_ok)) > goneAfterS)
+  onGoneChanged: if (gone && opened) close()
   readonly property string state: reachable ? String(data.state || "") : ""
   readonly property bool connected: reachable && state === "CONNECTED"
   readonly property bool down: reachable && !connected
