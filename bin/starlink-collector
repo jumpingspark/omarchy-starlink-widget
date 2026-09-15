@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Sammler: fragt die Starlink-Schüssel laufend ab, erkennt Unterbrüche und
 # schreibt den Stand nach ~/.local/state/starlink/status.json.
-# Das Bar-Widget startet ihn und hält ihn am Leben; endet das Widget (Shell
-# neu gestartet, Plugin entfernt), schliesst sich seine Eingabe und er beendet
-# sich selbst. Eine Sperre sorgt dafür, dass nur ein Sammler läuft.
+# Das Bar-Widget startet ihn und hält ihn am Leben; stirbt die Shell, verliert
+# er seinen Elternprozess und beendet sich selbst. Eine Sperre sorgt dafür,
+# dass nur ein Sammler läuft.
 # Beim ersten Start richtet er sich seine Python-Umgebung selbst ein
 # (~/.local/share/starlink-widget/venv, Paket starlink-grpc-core).
 set -euo pipefail
@@ -42,7 +42,6 @@ exec "$PY" -u - "$STATE_DIR" <<'PYEOF'
 import json
 import os
 import sys
-import threading
 import time
 
 state_dir = sys.argv[1]
@@ -56,17 +55,9 @@ MAX_OUTAGES = 200       # Unterbrüche, die status.json trägt
 import starlink_grpc
 
 
-# Das Widget hält unsere Eingabe offen. Schliesst sie sich, ist das Widget weg,
-# und wir gehen mit.
-def watch_stdin():
-    try:
-        sys.stdin.read()
-    except Exception:
-        pass
-    os._exit(0)
-
-
-threading.Thread(target=watch_stdin, daemon=True).start()
+# Unser Elternprozess ist die Shell. Verschwindet sie, werden wir umgehängt
+# und gehen mit.
+parent = os.getppid()
 
 
 def boot_time():
@@ -106,6 +97,8 @@ last_ok = None          # Zeitpunkt der letzten Antwort der Schüssel; None: noc
 ctx = None
 
 while True:
+    if os.getppid() != parent:
+        os._exit(0)
     ts = int(time.time())
     status = None
     error = ""
