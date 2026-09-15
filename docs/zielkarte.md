@@ -37,7 +37,7 @@ ist das Widget nicht in der Bar; das Panel folgt dem Aufbau der Batterie- und Ne
 |---|---|---|---|
 | 1 | Widget nur da, wenn Starlink. Acceptance Criteria: Antwortet die Schüssel eine Weile nicht, verschwindet das Symbol aus der Bar ohne Lücke; antwortet sie wieder, ist es wieder da. Ein Unterbruch mit erreichbarer Schüssel bleibt ein Unterbruch, kein Verschwinden. | steht | https://claude.ai/artifact/MZrotZeJNHVUQpMdosotXm |
 | 2 | Installierbar und aktualisierbar mit einem Befehl. Acceptance Criteria: `omarchy plugin add` aus dem GitHub-Repo bringt Widget und Sammler auf diesem Rechner zum Laufen, ohne Symlink, ohne Arbeitsrepo starlink-grpc-tools, ohne Handarbeit am Benutzerdienst; `omarchy plugin update` holt eine neue Fassung. | steht | https://claude.ai/artifact/QptB5kfHH2VWbHE3rWwWwi |
-| 3 | Panel im Stil der Omarchy-Panels. Acceptance Criteria: Kopf mit Symbol, Titel, Untertitel in Grossbuchstaben und grosser Kennzahl rechts; Kennzahlen zweispaltig, Beschriftung links, Wert rechts; Abschnittstitel in Grossbuchstaben; Trennlinien wie bei Batterie und Netzwerk. David bestätigt am Screenshot. | offen | |
+| 3 | Panel im Stil der Omarchy-Panels. Acceptance Criteria: Kopf mit Symbol, Titel, Untertitel in Grossbuchstaben und grosser Kennzahl rechts; Kennzahlen zweispaltig, Beschriftung links, Wert rechts; Abschnittstitel in Grossbuchstaben; Trennlinien wie bei Batterie und Netzwerk. David bestätigt am Screenshot. | steht, Bestätigung offen | https://claude.ai/artifact/YWpgUy3PQcM9K8Yxy4mw39 |
 
 ## Entscheide
 
@@ -59,6 +59,10 @@ Datum, Entscheid, Grund. Nichts löschen; ein gekippter Entscheid bekommt «abge
   Paket in eine eigene Umgebung, nicht mehr aus dem Arbeitsrepo starlink-grpc-tools.
 - 2026-09-15: Der Sammler erkennt das Ende der Shell am Elternprozess, nicht an seiner Eingabe;
   abgelöst wurde der erste Versuch über die Eingabe, weil Quickshell sie sofort schliesst.
+- 2026-09-15 (David): Panel so nahe wie möglich an den Omarchy-Panels, alles Englisch, weniger
+  Beschriftung. Umgesetzt mit denselben Bausteinen wie Batterie und Netzwerk: Statuszeile in
+  Grossbuchstaben, grosse Verzögerung rechts, Raster aus Beschriftung und Wert, Trennlinie,
+  Abschnittstitel. Verlauf ohne Achsen, Fusszeile weg, «läuft seit» ist die Zelle Uptime.
 
 ## Halde des Vorhabens
 
@@ -71,9 +75,10 @@ Ideen und Wünsche, die auf den Zielsatz einzahlen, aber nicht jetzt. Ein Satz j
 
 ## Letzter Stand
 
-15. September 2026, 12:50: Scheiben 1 und 2 stehen. Das Plugin läuft auf Davids Rechner aus der
-Omarchy-Installation, aus dem öffentlichen GitHub-Repo, Update über den Omarchy-Befehl geprüft. Als
-Nächstes Scheibe 3, das Panel im Stil der Omarchy-Panels; David muss nichts entscheiden.
+15. September 2026, 13:05: Alle drei Scheiben stehen, der Zielsatz ist wahr. Das Plugin kommt mit
+einem Befehl aus GitHub, zeigt sich nur im Starlink-Netz und sieht aus wie Batterie und Netzwerk.
+David muss das Panel am Screenshot bestätigen und den Abschluss entscheiden: fertig, weiter oder
+parken.
 
 ## Abschluss
 
