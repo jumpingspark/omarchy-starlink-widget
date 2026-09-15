@@ -66,9 +66,10 @@ Datum, Entscheid, Grund. Nichts löschen; ein gekippter Entscheid bekommt «abge
 - 2026-09-15: Erkennung über Routen-Ereignisse des Systems plus Prüfung der Schüssel-API, nicht
   über den WLAN-Namen: Der Name des Starlink-WLANs ist frei wählbar, die Adresse der Schüssel nicht.
   Ohne Ereignis wird nur alle zehn Minuten geprüft.
-- 2026-09-15: Der Wächter vererbt seine Sperre nicht an Lauscher und Sammler und beendet den
-  Lauscher mit sich; abgelöst wurde die erste Fassung, bei der ein verwaister Lauscher die Sperre
-  hielt und kein Wächter mehr hochkam.
+- 2026-09-15: Der Wächter vererbt seine Sperre nicht an Lauscher und Sammler, und der Lauscher wacht
+  selbst über den Wächter und endet spätestens 15 s nach ihm; abgelöst wurden zwei Fassungen: eine,
+  bei der ein verwaister Lauscher die Sperre hielt, und eine, die beim Aufräumen darauf baute, dass
+  die Shell den Wächter sanft beendet. Sie tut es hart.
 - 2026-09-15 (David): Panel so nahe wie möglich an den Omarchy-Panels, alles Englisch, weniger
   Beschriftung. Umgesetzt mit denselben Bausteinen wie Batterie und Netzwerk: Statuszeile in
   Grossbuchstaben, grosse Verzögerung rechts, Raster aus Beschriftung und Wert, Trennlinie,
