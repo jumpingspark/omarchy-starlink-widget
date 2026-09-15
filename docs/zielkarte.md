@@ -56,7 +56,10 @@ Datum, Entscheid, Grund. Nichts löschen; ein gekippter Entscheid bekommt «abge
 
 Ideen und Wünsche, die auf den Zielsatz einzahlen, aber nicht jetzt. Ein Satz je Eintrag.
 
-- (leer)
+- 2026-09-15 (David): Der Sammler soll nicht dauernd laufen, wenn Starlink lange nicht gebraucht wird.
+  Heute fragt er alle 2 Sekunden, ohne Schüssel alle rund 20 Sekunden vergeblich. Idee: erst beim
+  Netzwechsel wecken oder die Pausen bei Misserfolg wachsen lassen. Passt zu Scheibe 2, wenn das
+  Plugin den Sammler selbst startet.
 
 ## Letzter Stand
 
